@@ -47,7 +47,7 @@
                 <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
             <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">단어장 사진을 올려주세요</h2>
-            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
+            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 Gemini 3.8 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
 
             <div class="flex flex-col gap-3">
                 <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
@@ -220,7 +220,7 @@
         <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
             <div class="text-center mb-6">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">음성을 듣고 스펠링을 맞춰보세요</span>
-                <div class="flex justify-center items-center gap-2 mb-2">
+                <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
                     <button type="button" onclick="playTestAudio('sentence')" class="inline-flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-3.5 py-2 rounded-full transition text-xs shadow-sm">
                         <i class="fa-solid fa-quote-left text-xs"></i> 예문 듣기
                     </button>
@@ -238,7 +238,12 @@
             <div id="testResultBox" class="hidden rounded-2xl p-4 border mb-5">
                 <div id="testResultBadge" class="flex items-center gap-2 font-bold text-sm mb-1"></div>
                 <p id="testCorrectWord" class="text-xs font-semibold text-slate-700 mb-0.5"></p>
-                <p id="testFullSentence" class="text-xs text-slate-500"></p>
+                <div class="flex items-center justify-between mt-1">
+                    <p id="testFullSentence" class="text-xs text-slate-500 truncate mr-2"></p>
+                    <button type="button" onclick="playTestAudio('sentence')" class="shrink-0 bg-purple-100 hover:bg-purple-200 text-purple-700 text-[11px] font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1">
+                        <i class="fa-solid fa-quote-left text-[10px]"></i> 예문 다시듣기
+                    </button>
+                </div>
             </div>
 
             <div class="flex justify-center">
@@ -398,6 +403,7 @@
 
     <script>
         const HARDCODED_API_KEY = ""; 
+        const GEMINI_MODEL = "gemini-3.8-flash";
         let editingWordIdx = -1;
 
         let wordsData = [];
@@ -436,7 +442,6 @@
             const decks = getSavedDecks();
             const deckName = title || `단어장 (${new Date().toLocaleDateString('ko-KR')} ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})})`;
             
-            // Check if title exists
             const existingIdx = decks.findIndex(d => d.title === deckName);
             const deckData = {
                 id: existingIdx >= 0 ? decks[existingIdx].id : Date.now(),
@@ -626,7 +631,7 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -690,7 +695,7 @@
                 return;
             }
 
-            showLoading("이미지에서 단어와 발음기호 추출 중...");
+            showLoading("Gemini 3.8로 이미지 분석 및 단어 추출 중...");
 
             const reader = new FileReader();
             reader.onload = async function(e) {
@@ -740,7 +745,7 @@
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -766,7 +771,6 @@
                     wordsData = parsed;
                     currentIndex = 0;
                     
-                    // Auto save to history
                     const autoTitle = `단어장 (${new Date().toLocaleDateString('ko-KR')} ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})})`;
                     saveDeckToHistory(autoTitle, wordsData);
 
@@ -889,7 +893,7 @@
             }
 
             document.getElementById('testCorrectWord').innerText = `정답 단어: ${item.word} ${item.phonetic ? '(' + item.phonetic + ')' : ''}`;
-            document.getElementById('testFullSentence').innerText = `전체 예문: ${item.exampleEn}`;
+            document.getElementById('testFullSentence').innerText = `예문: ${item.exampleEn}`;
 
             document.getElementById('checkAnswerBtn').classList.add('hidden');
             document.getElementById('nextTestBtn').classList.remove('hidden');
@@ -1115,7 +1119,7 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
