@@ -47,7 +47,7 @@
                 <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
             <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">단어장 사진을 올려주세요</h2>
-            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 Gemini 3.8 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
+            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 Gemini 2.5 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
 
             <div class="flex flex-col gap-3">
                 <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
@@ -403,7 +403,7 @@
 
     <script>
         const HARDCODED_API_KEY = ""; 
-        const GEMINI_MODEL = "gemini-3.8-flash";
+        const GEMINI_MODEL = "gemini-2.5-flash";
         let editingWordIdx = -1;
 
         let wordsData = [];
@@ -695,7 +695,7 @@
                 return;
             }
 
-            showLoading("Gemini 3.8로 이미지 분석 및 단어 추출 중...");
+            showLoading("Gemini 2.5로 이미지 분석 및 단어 추출 중...");
 
             const reader = new FileReader();
             reader.onload = async function(e) {
