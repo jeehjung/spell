@@ -336,8 +336,10 @@
             const btnText = document.getElementById('apiKeyBtnText');
             if (key && key.trim() !== "") {
                 btnText.innerText = "API Key 설정됨";
+                btnText.parentElement.classList.remove('border-amber-300', 'bg-amber-50');
             } else {
-                btnText.innerText = "API Key 등록 필요";
+                btnText.innerText = "API Key 입력 필요";
+                btnText.parentElement.classList.add('border-amber-300', 'bg-amber-50');
             }
         }
 
@@ -412,7 +414,7 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -440,7 +442,7 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('dictLoading').classList.add('hidden');
-                alert("단어 검색 중 오류가 발생했습니다.");
+                alert("단어 검색 중 오류가 발생했습니다. API Key를 올바르게 입력했는지 확인해 주세요.");
             }
         }
 
@@ -523,7 +525,7 @@
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
