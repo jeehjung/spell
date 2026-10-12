@@ -402,6 +402,68 @@
         // Current dictionary lookup cached word object
         let currentDictWord = null;
 
+        // Reuse word details across dictionary lookup and AI autofill to reduce API calls.
+        const WORD_INFO_CACHE_KEY = 'spell_word_info_cache_v1';
+        const WORD_INFO_CACHE_LIMIT = 300;
+
+        function normalizeWordCacheKey(word) {
+            return String(word || '').trim().toLocaleLowerCase();
+        }
+
+        function getCachedWordInfo(word) {
+            const key = normalizeWordCacheKey(word);
+            if (!key) return null;
+            try {
+                const cache = JSON.parse(localStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
+                return cache[key] || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function saveCachedWordInfo(word, data) {
+            const key = normalizeWordCacheKey(word);
+            if (!key || !data || typeof data !== 'object') return;
+            try {
+                const cache = JSON.parse(localStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
+                // Reinsert the key at the end so the oldest entries can be removed first.
+                delete cache[key];
+                cache[key] = {
+                    word: data.word || word,
+                    phonetic: data.phonetic || '',
+                    meaning: data.meaning || '',
+                    exampleEn: data.exampleEn || '',
+                    exampleKo: data.exampleKo || ''
+                };
+                const keys = Object.keys(cache);
+                while (keys.length > WORD_INFO_CACHE_LIMIT) {
+                    delete cache[keys.shift()];
+                }
+                localStorage.setItem(WORD_INFO_CACHE_KEY, JSON.stringify(cache));
+            } catch (e) {
+                // Cache is optional; app features should continue if storage is full or unavailable.
+            }
+        }
+
+        function fillWordInfoFields(data) {
+            if (data.phonetic) document.getElementById('editPhoneticInput').value = data.phonetic;
+            if (data.meaning) document.getElementById('editMeaningInput').value = data.meaning;
+            if (data.exampleEn) document.getElementById('editExampleEnInput').value = data.exampleEn;
+            if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
+        }
+
+        function showDictionaryWord(data, fallbackWord) {
+            currentDictWord = data;
+            document.getElementById('dictResWord').innerText = data.word || fallbackWord;
+            document.getElementById('dictResPhonetic').innerText = data.phonetic || "[ - ]";
+            document.getElementById('dictResMeaning').innerText = data.meaning || "뜻 없음";
+            document.getElementById('dictResExampleEn').innerText = data.exampleEn || fallbackWord;
+            document.getElementById('dictResExampleKo').innerText = data.exampleKo || "";
+            document.getElementById('dictLoading').classList.add('hidden');
+            document.getElementById('dictResultArea').classList.remove('hidden');
+            document.getElementById('dictAddAction').classList.remove('hidden');
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
         });
@@ -651,6 +713,12 @@
             const query = document.getElementById('dictQueryInput').value.trim();
             if (!query) return;
 
+            const cachedWord = getCachedWordInfo(query);
+            if (cachedWord) {
+                showDictionaryWord(cachedWord, query);
+                return;
+            }
+
             const apiKey = getStoredApiKey();
             if (!apiKey) {
                 openApiKeyModal();
@@ -701,15 +769,8 @@
                         currentDictWord = JSON.parse(text);
                     }
 
-                    document.getElementById('dictResWord').innerText = currentDictWord.word || query;
-                    document.getElementById('dictResPhonetic').innerText = currentDictWord.phonetic || "[ - ]";
-                    document.getElementById('dictResMeaning').innerText = currentDictWord.meaning || "뜻 없음";
-                    document.getElementById('dictResExampleEn').innerText = currentDictWord.exampleEn || query;
-                    document.getElementById('dictResExampleKo').innerText = currentDictWord.exampleKo || "";
-
-                    document.getElementById('dictLoading').classList.add('hidden');
-                    document.getElementById('dictResultArea').classList.remove('hidden');
-                    document.getElementById('dictAddAction').classList.remove('hidden');
+                    saveCachedWordInfo(query, currentDictWord);
+                    showDictionaryWord(currentDictWord, query);
                 } else {
                     alert("결과를 찾을 수 없습니다.");
                 }
@@ -1045,6 +1106,12 @@
             const word = document.getElementById('editWordInput').value.trim();
             if (!word) return;
 
+            const cachedWord = getCachedWordInfo(word);
+            if (cachedWord) {
+                fillWordInfoFields(cachedWord);
+                return;
+            }
+
             const apiKey = getStoredApiKey();
             if (!apiKey) {
                 openApiKeyModal();
@@ -1091,10 +1158,8 @@
                     const jsonMatch = text.match(/\{[\s\S]*\}/);
                     const data = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
 
-                    if (data.phonetic) document.getElementById('editPhoneticInput').value = data.phonetic;
-                    if (data.meaning) document.getElementById('editMeaningInput').value = data.meaning;
-                    if (data.exampleEn) document.getElementById('editExampleEnInput').value = data.exampleEn;
-                    if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
+                    saveCachedWordInfo(word, data);
+                    fillWordInfoFields(data);
                 }
             } catch (err) {
                 console.error(err);
