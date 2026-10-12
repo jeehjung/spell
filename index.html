@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iun's Word Study</title>
+    <title>Iun's Word Study - Enhanced</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -26,11 +26,15 @@
         </div>
         <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
 
-        <!-- API Key Status / Setting Button -->
-        <div class="mt-3 flex justify-center">
+        <!-- Top Navigation / Utility Bar -->
+        <div class="mt-3 flex justify-center gap-2">
             <button onclick="openApiKeyModal()" class="text-xs bg-white/80 hover:bg-white text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-key text-amber-500"></i>
                 <span id="apiKeyBtnText">API Key 설정</span>
+            </button>
+            <button onclick="openDictionaryModal()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm px-3 py-1.5 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-book-open text-indigo-600"></i>
+                <span>개별 단어 사전 검색</span>
             </button>
         </div>
     </header>
@@ -42,7 +46,7 @@
                 <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
             <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">단어장 사진을 올려주세요</h2>
-            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 AI가 단어와 뜻, 예문을 자동으로 추출합니다.</p>
+            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
 
             <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
                 <i class="fa-solid fa-image mr-2"></i> 사진 파일 선택하기
@@ -53,7 +57,7 @@
         <div id="loadingView" class="hidden bg-white rounded-3xl p-10 card-shadow border border-slate-100 text-center">
             <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h3 class="text-lg font-bold text-slate-800" id="loadingText">AI가 이미지를 분석하고 있습니다...</h3>
-            <p class="text-xs text-slate-500 mt-1">단어 추출 및 뜻/예문을 생성 중입니다.</p>
+            <p class="text-xs text-slate-500 mt-1">단어 추출 및 발음기호/예문을 생성 중입니다.</p>
         </div>
 
         <div id="cardView" class="hidden flex flex-col gap-4">
@@ -73,7 +77,7 @@
             </div>
 
             <!-- Flash Card Main -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 flex flex-col items-center relative overflow-hidden min-h-[340px] justify-between">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 flex flex-col items-center relative overflow-hidden min-h-[360px] justify-between">
                 
                 <!-- Top Audio & Word Type -->
                 <div class="w-full flex justify-between items-center text-xs text-slate-400 font-medium">
@@ -84,8 +88,9 @@
                 </div>
 
                 <!-- Word & Meaning Center -->
-                <div class="text-center my-auto py-2">
-                    <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2">word</h2>
+                <div class="text-center my-auto py-2 w-full">
+                    <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-1">word</h2>
+                    <p id="cardPhonetic" class="text-slate-400 font-mono text-sm sm:text-base mb-2">[wɜːrd]</p>
                     <div class="flex items-center justify-center gap-2 text-indigo-600 font-semibold text-sm sm:text-base mb-4">
                         <span id="cardMeaning">단어 뜻</span>
                     </div>
@@ -205,7 +210,68 @@
             </div>
         </div>
 
-        <!-- API Key Setup Modal -->
+        <div id="dictionaryModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full card-shadow border border-slate-100 relative max-h-[90vh] flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-lg shadow-inner">
+                            <i class="fa-solid fa-book-open"></i>
+                        </div>
+                        <h3 class="text-lg font-extrabold text-slate-900">개별 단어 사전 검색</h3>
+                    </div>
+                    <button onclick="closeDictionaryModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                    궁금한 영어 단어를 입력하면 AI가 발음기호, 뜻, 예문을 즉시 조회해 드립니다.
+                </p>
+
+                <div class="flex gap-2 mb-4">
+                    <input type="text" id="dictQueryInput" placeholder="예: resilient, serendipity" 
+                           onkeyup="if(event.key==='Enter') lookupDictionaryWord()"
+                           class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-medium">
+                    <button onclick="lookupDictionaryWord()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-5 py-3 rounded-xl transition text-sm shadow-md">
+                        검색
+                    </button>
+                </div>
+
+                <!-- Dictionary Result Area -->
+                <div id="dictLoading" class="hidden py-10 text-center">
+                    <div class="w-10 h-10 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                    <p class="text-xs text-slate-400">사전에서 단어 정보를 찾는 중...</p>
+                </div>
+
+                <div id="dictResultArea" class="hidden bg-slate-50 rounded-2xl p-4 border border-slate-100 overflow-y-auto flex-1 space-y-3">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 id="dictResWord" class="text-2xl font-black text-slate-900">word</h4>
+                            <p id="dictResPhonetic" class="text-indigo-600 font-mono text-sm">[wɜːrd]</p>
+                        </div>
+                        <button onclick="speakDictWord()" class="w-9 h-9 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-full flex items-center justify-center transition">
+                            <i class="fa-solid fa-volume-high"></i>
+                        </button>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">뜻 (Meaning)</span>
+                        <p id="dictResMeaning" class="text-sm font-bold text-slate-800">단어 뜻</p>
+                    </div>
+                    <div>
+                        <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">예문 (Example)</span>
+                        <p id="dictResExampleEn" class="text-sm font-semibold text-slate-800 mt-0.5">Example sentence here.</p>
+                        <p id="dictResExampleKo" class="text-xs text-slate-500 mt-0.5">예문 해석입니다.</p>
+                    </div>
+                </div>
+
+                <!-- Add to study deck button -->
+                <div id="dictAddAction" class="hidden mt-4 pt-3 border-t border-slate-100">
+                    <button onclick="addDictWordToStudyDeck()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i> 내 학습 단어장에 추가하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
                 <div class="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
@@ -213,8 +279,8 @@
                 </div>
                 <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
                 <p class="text-xs text-slate-500 mb-4 leading-relaxed">
-                    단어장 사진을 AI로 분석하기 위해 API Key가 필요합니다.<br>
-                    입력하신 Key는 <strong>브라우저 내부(localStorage)에 안전하게 저장</strong>되어 재방문 시에도 유지됩니다.
+                    AI 분석 및 사전 검색을 위해 API Key가 필요합니다.<br>
+                    입력하신 Key는 <strong>브라우저 내부(localStorage)에 안전하게 저장</strong>됩니다.
                 </p>
 
                 <div class="mb-4">
@@ -242,7 +308,6 @@
     </main>
 
     <script>
-        // Optional fallback key (leave empty to require user input)
         const HARDCODED_API_KEY = ""; 
 
         let wordsData = [];
@@ -255,7 +320,9 @@
         let isAnswerChecked = false;
         let incorrectWords = [];
 
-        // Check & retrieve API Key on startup
+        // Current dictionary lookup cached word object
+        let currentDictWord = null;
+
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
         });
@@ -294,6 +361,107 @@
             closeApiKeyModal();
         }
 
+        // Dictionary Modal Controls
+        function openDictionaryModal() {
+            document.getElementById('dictQueryInput').value = '';
+            document.getElementById('dictLoading').classList.add('hidden');
+            document.getElementById('dictResultArea').classList.add('hidden');
+            document.getElementById('dictAddAction').classList.add('hidden');
+            document.getElementById('dictionaryModal').classList.remove('hidden');
+            document.getElementById('dictQueryInput').focus();
+        }
+
+        function closeDictionaryModal() {
+            document.getElementById('dictionaryModal').classList.add('hidden');
+        }
+
+        async function lookupDictionaryWord() {
+            const query = document.getElementById('dictQueryInput').value.trim();
+            if (!query) return;
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey) {
+                openApiKeyModal();
+                return;
+            }
+
+            document.getElementById('dictLoading').classList.remove('hidden');
+            document.getElementById('dictResultArea').classList.add('hidden');
+            document.getElementById('dictAddAction').classList.add('hidden');
+
+            const systemPrompt = "You are a professional English dictionary and phonetic expert. Provide information for the requested word in strict JSON format with keys: word, phonetic (IPA format like [wɜːrd]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example).";
+            const userQuery = `Provide dictionary information for the word: "${query}" in JSON format.`;
+
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: userQuery }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            word: { type: "STRING" },
+                            phonetic: { type: "STRING" },
+                            meaning: { type: "STRING" },
+                            exampleEn: { type: "STRING" },
+                            exampleKo: { type: "STRING" }
+                        },
+                        propertyOrdering: ["word", "phonetic", "meaning", "exampleEn", "exampleKo"]
+                    }
+                },
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("API 요청 실패");
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    currentDictWord = JSON.parse(text);
+                    document.getElementById('dictResWord').innerText = currentDictWord.word;
+                    document.getElementById('dictResPhonetic').innerText = currentDictWord.phonetic || "[ - ]";
+                    document.getElementById('dictResMeaning').innerText = currentDictWord.meaning;
+                    document.getElementById('dictResExampleEn').innerText = currentDictWord.exampleEn;
+                    document.getElementById('dictResExampleKo').innerText = currentDictWord.exampleKo;
+
+                    document.getElementById('dictLoading').classList.add('hidden');
+                    document.getElementById('dictResultArea').classList.remove('hidden');
+                    document.getElementById('dictAddAction').classList.remove('hidden');
+                } else {
+                    throw new Error("결과를 찾을 수 없습니다.");
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('dictLoading').classList.add('hidden');
+                alert("단어 검색 중 오류가 발생했습니다.");
+            }
+        }
+
+        function speakDictWord() {
+            if (!currentDictWord || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(currentDictWord.word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function addDictWordToStudyDeck() {
+            if (!currentDictWord) return;
+            wordsData.push(currentDictWord);
+            currentIndex = wordsData.length - 1;
+            showCardView();
+            closeDictionaryModal();
+            alert(`"${currentDictWord.word}" 단어가 학습 단어장에 추가되었습니다!`);
+        }
+
         async function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -305,7 +473,7 @@
                 return;
             }
 
-            showLoading("이미지에서 단어 추출 중...");
+            showLoading("이미지에서 단어와 발음기호 추출 중...");
 
             const reader = new FileReader();
             reader.onload = async function(e) {
@@ -322,8 +490,8 @@
         }
 
         async function extractWordsFromImage(base64Data, mimeType, apiKey) {
-            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary/phonics list. Extract all English words visible in the image. For each word, provide its Korean meaning (뜻), and 1 simple example sentence in English (exampleEn) and its Korean translation (exampleKo). Output strictly in JSON format as an array of objects with keys: word, meaning, exampleEn, exampleKo.";
-            const userQuery = "Extract all English words from this image along with their meanings and examples in JSON format.";
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary/phonics list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), 1 simple example sentence in English (exampleEn), and its Korean translation (exampleKo). Output strictly in JSON format as an array of objects with keys: word, phonetic, meaning, exampleEn, exampleKo.";
+            const userQuery = "Extract all English words from this image along with phonetic transcriptions, meanings, and examples in JSON format.";
 
             const payload = {
                 contents: [
@@ -343,11 +511,12 @@
                             type: "OBJECT",
                             properties: {
                                 word: { type: "STRING" },
+                                phonetic: { type: "STRING" },
                                 meaning: { type: "STRING" },
                                 exampleEn: { type: "STRING" },
                                 exampleKo: { type: "STRING" }
                             },
-                            propertyOrdering: ["word", "meaning", "exampleEn", "exampleKo"]
+                            propertyOrdering: ["word", "phonetic", "meaning", "exampleEn", "exampleKo"]
                         }
                     }
                 },
@@ -495,7 +664,7 @@
                 resultBadge.innerHTML = `<i class="fa-solid fa-circle-xmark text-lg"></i> ${userInput ? '아쉬워요!' : '정답을 확인해 보세요!'}`;
             }
 
-            document.getElementById('testCorrectWord').innerText = `정답 단어: ${item.word}`;
+            document.getElementById('testCorrectWord').innerText = `정답 단어: ${item.word} ${item.phonetic ? '(' + item.phonetic + ')' : ''}`;
             document.getElementById('testFullSentence').innerText = `전체 예문: ${item.exampleEn}`;
 
             document.getElementById('checkAnswerBtn').classList.add('hidden');
@@ -544,6 +713,7 @@
             const item = wordsData[currentIndex];
 
             document.getElementById('cardWord').innerText = item.word;
+            document.getElementById('cardPhonetic').innerText = item.phonetic || "[ - ]";
             document.getElementById('cardMeaning').innerText = item.meaning;
             document.getElementById('cardExampleEn').innerText = item.exampleEn;
             document.getElementById('cardExampleKo').innerText = item.exampleKo;
@@ -610,9 +780,12 @@
                 div.innerHTML = `
                     <div class="flex items-center space-x-3">
                         <span class="text-xs text-slate-400 w-5">#${idx + 1}</span>
-                        <span class="text-sm font-semibold">${item.word}</span>
+                        <div>
+                            <span class="text-sm font-semibold">${item.word}</span>
+                            <span class="text-xs text-indigo-500 ml-1 font-mono">${item.phonetic || ''}</span>
+                        </div>
                     </div>
-                    <span class="text-xs text-slate-500 truncate max-w-[150px]">${item.meaning}</span>
+                    <span class="text-xs text-slate-500 truncate max-w-[140px]">${item.meaning}</span>
                 `;
                 div.onclick = () => {
                     currentIndex = idx;
