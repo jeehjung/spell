@@ -22,10 +22,10 @@
 
     <header class="w-full max-w-xl text-center py-4">
         <div class="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2">
-            <i class="fa-solid fa-graduation-cap mr-2"></i> AI 스마트 단어 학습기
+            <i class="fa-solid fa-graduation-cap mr-2"></i> Iun's Word Study
         </div>
         <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">영어 단어장 카드 학습</h1>
-        <p class="text-xs sm:text-sm text-slate-500 mt-1">이미지를 올리거나 기본 단어장으로 발음, 뜻, 예문을 학습하세요!</p>
+        <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
     </header>
 
     <main class="w-full max-w-xl flex-1 flex flex-col justify-center my-2">
@@ -35,23 +35,13 @@
             <div class="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
-            <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-2">단어장 사진을 올려주세요</h2>
-            <p class="text-xs sm:text-sm text-slate-500 mb-6">스마트폰이나 PC에서 단어장 사진을 선택하시면 AI가 단어를 인식합니다.</p>
+            <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">단어장 사진을 올려주세요</h2>
+            <p class="text-xs sm:text-sm text-slate-400 mb-6">스마트폰이나 PC에서 단어장 사진을 업로드하면 AI가 단어와 뜻, 예문을 자동으로 추출합니다.</p>
 
-            <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center mb-3">
+            <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
                 <i class="fa-solid fa-image mr-2"></i> 사진 파일 선택하기
                 <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
             </label>
-
-            <div class="relative flex py-2 items-center">
-                <div class="flex-grow border-t border-slate-200"></div>
-                <span class="flex-shrink mx-4 text-slate-400 text-xs font-medium">또는</span>
-                <div class="flex-grow border-t border-slate-200"></div>
-            </div>
-
-            <button onclick="loadDefaultWords()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-6 rounded-2xl transition-all text-sm mt-1">
-                <i class="fa-solid fa-book-open mr-2 text-indigo-500"></i> 기본 단어장 (web, pen, wet...) 체험하기
-            </button>
         </div>
 
         <!-- Loading View -->
@@ -68,8 +58,13 @@
                 <button onclick="backToUpload()" class="text-xs font-semibold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200 transition">
                     <i class="fa-solid fa-arrow-left mr-1"></i> 다른 사진 올리기
                 </button>
-                <div class="bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full text-xs" id="progressIndicator">
-                    1 / 10
+                <div class="flex items-center gap-2">
+                    <button onclick="startSpellTest()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-md transition transform active:scale-95 flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen-clip"></i> Spell Test 시작!
+                    </button>
+                    <div class="bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full text-xs" id="progressIndicator">
+                        1 / 10
+                    </div>
                 </div>
             </div>
 
@@ -86,9 +81,9 @@
 
                 <!-- Word & Meaning Center -->
                 <div class="text-center my-auto py-2">
-                    <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2">web</h2>
+                    <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2">word</h2>
                     <div class="flex items-center justify-center gap-2 text-indigo-600 font-semibold text-sm sm:text-base mb-4">
-                        <span id="cardMeaning">거미줄, 웹</span>
+                        <span id="cardMeaning">단어 뜻</span>
                     </div>
                     
                     <!-- Example Box -->
@@ -99,8 +94,8 @@
                                 <i class="fa-solid fa-volume-low"></i> 예문 듣기
                             </button>
                         </div>
-                        <p id="cardExampleEn" class="text-sm font-semibold text-slate-800">The spider made a web.</p>
-                        <p id="cardExampleKo" class="text-xs text-slate-500 mt-0.5">거미가 거미줄을 만들었습니다.</p>
+                        <p id="cardExampleEn" class="text-sm font-semibold text-slate-800">Example sentence goes here.</p>
+                        <p id="cardExampleKo" class="text-xs text-slate-500 mt-0.5">예문 해석이 여기에 표시됩니다.</p>
                     </div>
                 </div>
 
@@ -129,38 +124,97 @@
             </div>
         </div>
 
-    </main>
+        <!-- Spell Test View -->
+        <div id="testView" class="hidden flex flex-col gap-4">
+            <!-- Test Header Controls -->
+            <div class="flex items-center justify-between px-2">
+                <button onclick="exitSpellTest()" class="text-xs font-semibold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200 transition">
+                    <i class="fa-solid fa-xmark mr-1"></i> 카드 학습으로 돌아가기
+                </button>
+                <div class="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-full text-xs" id="testProgressIndicator">
+                    Test 1 / 10
+                </div>
+            </div>
 
-    <footer class="w-full max-w-xl text-center py-4 text-xs text-slate-400">
-        <p>파닉스 단어 학습 앱 &copy; 2026. 음성 합성(TTS) 기능 지원</p>
-    </footer>
+            <!-- Test Card Main -->
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 flex flex-col items-center relative min-h-[380px] justify-between text-center">
+                
+                <!-- Audio Cue Buttons -->
+                <div class="w-full flex justify-center gap-2 my-2">
+                    <button onclick="playTestAudio('sentence')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition border border-emerald-200 shadow-sm active:scale-95">
+                        <i class="fa-solid fa-volume-high text-base text-emerald-600"></i> 예문 다시 듣기
+                    </button>
+                    <button onclick="playTestAudio('word')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition border border-indigo-200 shadow-sm active:scale-95">
+                        <i class="fa-solid fa-volume-low text-base text-indigo-600"></i> 단어만 듣기
+                    </button>
+                </div>
+
+                <!-- Test Input Area -->
+                <div class="w-full my-auto py-4">
+                    <!-- Spelling Input Box -->
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-500 text-left pl-1">소리를 듣고 아래에 스펠링을 입력하세요:</label>
+                        <input type="text" id="testSpellingInput" placeholder="스펠링을 입력하세요 (선택)" autocomplete="off" spellcheck="false"
+                               onkeyup="if(event.key==='Enter') checkTestAnswer()" 
+                               class="w-full text-center text-2xl font-black tracking-wider py-3 px-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-emerald-500 focus:outline-none transition">
+                    </div>
+
+                    <!-- Result Answer Reveal Box -->
+                    <div id="testResultBox" class="hidden mt-4 p-4 rounded-2xl border transition-all text-left">
+                        <div class="flex items-center gap-2 font-bold text-sm mb-1" id="testResultBadge">
+                            <!-- Correct / Incorrect Icon & Text -->
+                        </div>
+                        <p class="text-sm font-extrabold text-slate-900" id="testCorrectWord">정답: </p>
+                        <p class="text-xs text-slate-600 mt-0.5" id="testFullSentence">원문: </p>
+                    </div>
+                </div>
+
+                <!-- Test Bottom Action Buttons -->
+                <div class="w-full grid grid-cols-2 gap-3 pt-4 border-t border-slate-100" id="testActionBtns">
+                    <button onclick="checkTestAnswer()" id="checkAnswerBtn" class="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-emerald-100 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-check mr-2"></i> 정답 확인하기
+                    </button>
+                    <button onclick="nextTestCard()" id="nextTestBtn" class="hidden col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-indigo-100 flex items-center justify-center text-sm">
+                        다음 문제 <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Test Result Summary Modal / View -->
+        <div id="testSummaryView" class="hidden bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center">
+            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-900 mb-1">Spell Test 완료!</h3>
+            <p class="text-sm text-slate-500 mb-6" id="testScoreText">총 0문제 중 0문제를 맞혔습니다.</p>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="startSpellTest(false)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> 전체 다시 테스트
+                </button>
+                <button id="retryIncorrectBtn" onclick="startSpellTest(true)" class="hidden flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                    <i class="fa-solid fa-pen-to-square mr-1"></i> 틀린 문제만 다시 풀기
+                </button>
+                <button onclick="exitSpellTest()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                    학습 카드로 돌아가기
+                </button>
+            </div>
+        </div>
+
+    </main>
 
     <script>
         let wordsData = [];
         let currentIndex = 0;
 
-        const defaultWords = [
-            { word: "web", meaning: "거미줄, 웹", exampleEn: "The spider built a web.", exampleKo: "거미가 거미줄을 쳤습니다." },
-            { word: "pen", meaning: "펜", exampleEn: "I write with a blue pen.", exampleKo: "나는 파란색 펜으로 씁니다." },
-            { word: "wet", meaning: "젖은", exampleEn: "My shoes are wet in the rain.", exampleKo: "비에 내 신발이 젖었습니다." },
-            { word: "leg", meaning: "다리", exampleEn: "He hurt his left leg.", exampleKo: "그는 왼쪽 다리를 다쳤습니다." },
-            { word: "hen", meaning: "암탉", exampleEn: "The hen lays an egg.", exampleKo: "암탉이 달걀을 낳습니다." },
-            { word: "messy", meaning: "지저분한", exampleEn: "Your room is very messy.", exampleKo: "너의 방은 아주 지저분하다." },
-            { word: "went", meaning: "갔다 (go의 과거)", exampleEn: "She went to the park.", exampleKo: "그녀는 공원에 갔습니다." },
-            { word: "will", meaning: "~할 것이다", exampleEn: "I will help you.", exampleKo: "내가 너를 도울 거야." },
-            { word: "egg", meaning: "달걀, 계란", exampleEn: "I eat a boiled egg.", exampleKo: "나는 삶은 계란을 먹습니다." },
-            { word: "grass", meaning: "풀, 잔디", exampleEn: "The grass is green.", exampleKo: "잔디가 초록색입니다." },
-            { word: "tell", meaning: "말하다", exampleEn: "Please tell me the truth.", exampleKo: "내게 진실을 말해 주세요." },
-            { word: "miss", meaning: "그리워하다, 놓치다", exampleEn: "I miss my family.", exampleKo: "나는 가족이 그립습니다." },
-            { word: "game", meaning: "게임, 경기", exampleEn: "Let's play a game.", exampleKo: "게임 한 판 하자." },
-            { word: "these", meaning: "이것들", exampleEn: "These books are mine.", exampleKo: "이 책들은 내 것입니다." }
-        ];
-
-        function loadDefaultWords() {
-            wordsData = defaultWords;
-            currentIndex = 0;
-            showCardView();
-        }
+        // Test mode states
+        let testWords = []; // List of words currently being tested
+        let testIndex = 0;
+        let testScore = 0;
+        let isAnswerChecked = false;
+        let incorrectWords = []; // List of words answered incorrectly
 
         async function handleImageUpload(event) {
             const file = event.target.files[0];
@@ -175,8 +229,8 @@
                     await extractWordsFromImage(base64Data, file.type);
                 } catch (err) {
                     console.error(err);
-                    alert("단어 추출 중 오류가 발생했습니다. 기본 단어장으로 대체합니다.");
-                    loadDefaultWords();
+                    alert("단어 추출 중 오류가 발생했습니다. 다시 시도해 주세요.");
+                    backToUpload();
                 }
             };
             reader.readAsDataURL(file);
@@ -250,14 +304,152 @@
             document.getElementById('uploadView').classList.add('hidden');
             document.getElementById('loadingView').classList.add('hidden');
             document.getElementById('cardView').classList.remove('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
             renderCard();
             renderWordList();
         }
 
         function backToUpload() {
             document.getElementById('uploadView').classList.remove('hidden');
+            document.getElementById('loadingView').classList.add('hidden');
             document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
             document.getElementById('imageInput').value = '';
+        }
+
+        // Spell Test Functions
+        function startSpellTest(onlyIncorrect = false) {
+            if (wordsData.length === 0) return;
+
+            if (onlyIncorrect && incorrectWords.length > 0) {
+                testWords = [...incorrectWords];
+            } else {
+                testWords = [...wordsData];
+            }
+
+            testIndex = 0;
+            testScore = 0;
+            incorrectWords = [];
+
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('testView').classList.remove('hidden');
+
+            renderTestCard();
+        }
+
+        function renderTestCard() {
+            isAnswerChecked = false;
+            const item = testWords[testIndex];
+
+            document.getElementById('testProgressIndicator').innerText = `Test ${testIndex + 1} / ${testWords.length}`;
+
+            const inputEl = document.getElementById('testSpellingInput');
+            inputEl.value = '';
+            inputEl.disabled = false;
+            inputEl.focus();
+
+            const resultBox = document.getElementById('testResultBox');
+            resultBox.classList.add('hidden');
+
+            document.getElementById('checkAnswerBtn').classList.remove('hidden');
+            document.getElementById('nextTestBtn').classList.add('hidden');
+
+            // Play sentence audio when test card opens
+            playTestAudio('sentence');
+        }
+
+        function playTestAudio(type) {
+            if (!('speechSynthesis' in window) || testWords.length === 0) return;
+            window.speechSynthesis.cancel();
+            
+            const item = testWords[testIndex];
+            const textToSpeak = type === 'sentence' ? item.exampleEn : item.word;
+            
+            const utterance = new SpeechSynthesisUtterance(textToSpeak);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.85;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function checkTestAnswer() {
+            if (isAnswerChecked) return;
+            isAnswerChecked = true;
+
+            const item = testWords[testIndex];
+            const userInput = document.getElementById('testSpellingInput').value.trim().toLowerCase();
+            const correctWord = item.word.trim().toLowerCase();
+
+            const isCorrect = userInput === correctWord;
+            if (isCorrect) {
+                testScore++;
+            } else {
+                incorrectWords.push(item);
+            }
+
+            const inputEl = document.getElementById('testSpellingInput');
+            inputEl.disabled = true;
+
+            const resultBox = document.getElementById('testResultBox');
+            const resultBadge = document.getElementById('testResultBadge');
+            
+            resultBox.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-200', 'bg-rose-50', 'border-rose-200');
+            
+            if (isCorrect) {
+                resultBox.classList.add('bg-emerald-50', 'border-emerald-200');
+                resultBadge.className = "flex items-center gap-2 font-bold text-sm text-emerald-700";
+                resultBadge.innerHTML = `<i class="fa-solid fa-circle-check text-lg"></i> 정답입니다! 아주 잘했어요!`;
+            } else {
+                resultBox.classList.add('bg-rose-50', 'border-rose-200');
+                resultBadge.className = "flex items-center gap-2 font-bold text-sm text-rose-700";
+                resultBadge.innerHTML = `<i class="fa-solid fa-circle-xmark text-lg"></i> ${userInput ? '아쉬워요!' : '정답을 확인해 보세요!'}`;
+            }
+
+            document.getElementById('testCorrectWord').innerText = `정답 단어: ${item.word}`;
+            document.getElementById('testFullSentence').innerText = `전체 예문: ${item.exampleEn}`;
+
+            document.getElementById('checkAnswerBtn').classList.add('hidden');
+            document.getElementById('nextTestBtn').classList.remove('hidden');
+
+            // Speak correct word after revealing
+            speakCurrentWordText(item.word);
+        }
+
+        function speakCurrentWordText(text) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function nextTestCard() {
+            if (testIndex < testWords.length - 1) {
+                testIndex++;
+                renderTestCard();
+            } else {
+                showTestSummary();
+            }
+        }
+
+        function showTestSummary() {
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.remove('hidden');
+            document.getElementById('testScoreText').innerText = `총 ${testWords.length}문제 중 ${testScore}문제를 맞혔습니다!`;
+
+            const retryIncorrectBtn = document.getElementById('retryIncorrectBtn');
+            if (incorrectWords.length > 0) {
+                retryIncorrectBtn.classList.remove('hidden');
+            } else {
+                retryIncorrectBtn.classList.add('hidden');
+            }
+        }
+
+        function exitSpellTest() {
+            showCardView();
         }
 
         function renderCard() {
@@ -275,7 +467,6 @@
             document.getElementById('prevBtn').disabled = currentIndex === 0;
             document.getElementById('nextBtn').disabled = currentIndex === wordsData.length - 1;
             
-            // Auto speak word on card change
             speakCurrentWord();
         }
 
