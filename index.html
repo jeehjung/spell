@@ -379,6 +379,13 @@
         </div>
     </div>
 
+    <!-- App Info Footer -->
+    <footer class="w-full max-w-xl text-center py-5 mt-6 border-t border-indigo-100 text-[11px] text-slate-500">
+        <p id="storageUsageLabel" class="mb-1">브라우저 저장 데이터 확인 중...</p>
+        <p>사용 중인 Gemini 모델: <span id="geminiModelLabel" class="font-semibold text-indigo-600">gemini-3.8-flash</span></p>
+        <p class="mt-1 text-[10px] text-slate-400">저장 용량은 단어장, 캐시 등 브라우저에 저장된 데이터의 추정치입니다.</p>
+    </footer>
+
     <!-- Script Logic -->
     <script>
         const HARDCODED_API_KEY = ""; 
@@ -440,6 +447,7 @@
                     delete cache[keys.shift()];
                 }
                 localStorage.setItem(WORD_INFO_CACHE_KEY, JSON.stringify(cache));
+                updateStorageUsageDisplay();
             } catch (e) {
                 // Cache is optional; app features should continue if storage is full or unavailable.
             }
@@ -466,6 +474,9 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
+            updateStorageUsageDisplay();
+            const modelLabel = document.getElementById('geminiModelLabel');
+            if (modelLabel) modelLabel.textContent = GEMINI_MODEL;
         });
 
         function getSavedDecks() {
@@ -478,6 +489,35 @@
 
         function saveDecksToStorage(decks) {
             localStorage.setItem('saved_word_decks', JSON.stringify(decks));
+            updateStorageUsageDisplay();
+        }
+
+        // Estimate all localStorage usage (including decks, word cache, and API key).
+        // localStorage is typically stored as UTF-16; exact quota accounting varies by browser.
+        function updateStorageUsageDisplay() {
+            const label = document.getElementById('storageUsageLabel');
+            if (!label) return;
+
+            try {
+                let totalBytes = 0;
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const value = localStorage.getItem(key) || '';
+                    totalBytes += (String(key).length + value.length) * 2;
+                }
+
+                let formatted;
+                if (totalBytes < 1024) {
+                    formatted = totalBytes + ' B';
+                } else if (totalBytes < 1024 * 1024) {
+                    formatted = (totalBytes / 1024).toFixed(1) + ' KB';
+                } else {
+                    formatted = (totalBytes / (1024 * 1024)).toFixed(2) + ' MB';
+                }
+                label.textContent = '브라우저 저장 데이터 사용량 약 ' + formatted + ' (단어장 + 캐시 포함)';
+            } catch (e) {
+                label.textContent = '브라우저 저장 데이터 사용량을 확인할 수 없습니다.';
+            }
         }
 
         function saveDeckToHistory(title, words, specificDeckId = null) {
@@ -693,6 +733,7 @@
                 localStorage.removeItem('gemini_api_key');
             }
             updateApiKeyUI();
+            updateStorageUsageDisplay();
             closeApiKeyModal();
         }
 
