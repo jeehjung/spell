@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>파닉스 & 단어 카드 학습기</title>
+    <title>Iun's Word Study</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -30,7 +30,6 @@
 
     <main class="w-full max-w-xl flex-1 flex flex-col justify-center my-2">
 
-        <!-- Upload View -->
         <div id="uploadView" class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center transition-all duration-300">
             <div class="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -44,14 +43,12 @@
             </label>
         </div>
 
-        <!-- Loading View -->
         <div id="loadingView" class="hidden bg-white rounded-3xl p-10 card-shadow border border-slate-100 text-center">
             <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h3 class="text-lg font-bold text-slate-800" id="loadingText">AI가 이미지를 분석하고 있습니다...</h3>
             <p class="text-xs text-slate-500 mt-1">단어 추출 및 뜻/예문을 생성 중입니다.</p>
         </div>
 
-        <!-- Learning Card View -->
         <div id="cardView" class="hidden flex flex-col gap-4">
             <!-- Progress & Controls Top -->
             <div class="flex items-center justify-between px-2">
@@ -124,7 +121,6 @@
             </div>
         </div>
 
-        <!-- Spell Test View -->
         <div id="testView" class="hidden flex flex-col gap-4">
             <!-- Test Header Controls -->
             <div class="flex items-center justify-between px-2">
@@ -182,7 +178,6 @@
             </div>
         </div>
 
-        <!-- Test Result Summary View -->
         <div id="testSummaryView" class="hidden bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center">
             <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
                 <i class="fa-solid fa-trophy"></i>
@@ -206,7 +201,8 @@
     </main>
 
     <script>
-        const HARDCODED_API_KEY = ""; // 자동 제공되는 API Key 사용
+        // Hardcoded API key for seamless deployment
+        const HARDCODED_API_KEY = ""; 
 
         let wordsData = [];
         let currentIndex = 0;
@@ -230,8 +226,8 @@
                 try {
                     await extractWordsFromImage(base64Data, file.type, HARDCODED_API_KEY);
                 } catch (err) {
-                    console.error(err);
-                    alert("단어 추출 중 오류가 발생했습니다. 콘솔창을 확인해 주세요.");
+                    console.error("Extraction error:", err);
+                    alert("단어 추출 중 오류가 발생했습니다. 콘솔창(F12)을 확인해 주세요.");
                     backToUpload();
                 }
             };
@@ -271,13 +267,18 @@
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`API Error: ${response.status} - ${errText}`);
+            }
 
             const result = await response.json();
             const candidate = result.candidates?.[0];
@@ -291,7 +292,7 @@
                     return;
                 }
             }
-            throw new Error("No words extracted");
+            throw new Error("No words extracted from image response");
         }
 
         function showLoading(text) {
