@@ -382,7 +382,7 @@
     <!-- Script Logic -->
     <script>
         const HARDCODED_API_KEY = ""; 
-        const GEMINI_MODEL = "gemini-3.8-flash";
+        const GEMINI_MODEL = "gemini-2.5-flash";
         const OVERQUOTA_MSG = "api 사용량이 초과되었습니다. 추가 결제를 하거나, 내일 다시 시도해주세요. 저장된 단어장 사용은 제한없이 가능합니다";
 
         let editingWordIdx = -1;
@@ -660,25 +660,11 @@
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
 
-            const systemPrompt = "You are a professional English dictionary and phonetic expert. Provide information for the requested word in strict JSON format with keys: word, phonetic (IPA format like [wɜːrd]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example).";
+            const systemPrompt = "You are a professional English dictionary and phonetic expert. Provide information for the requested word in valid JSON format only, with keys: word, phonetic (IPA format like [wɜːrd]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example). Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
             const userQuery = `Provide dictionary information for the word: "${query}" in JSON format.`;
 
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            word: { type: "STRING" },
-                            phonetic: { type: "STRING" },
-                            meaning: { type: "STRING" },
-                            exampleEn: { type: "STRING" },
-                            exampleKo: { type: "STRING" }
-                        },
-                        propertyOrdering: ["word", "phonetic", "meaning", "exampleEn", "exampleKo"]
-                    }
-                },
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
@@ -701,14 +687,22 @@
                 }
 
                 const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (text) {
-                    currentDictWord = JSON.parse(text);
-                    document.getElementById('dictResWord').innerText = currentDictWord.word;
+                    // Robust JSON extraction using regex for both free and paid keys
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        currentDictWord = JSON.parse(jsonMatch[0]);
+                    } else {
+                        currentDictWord = JSON.parse(text);
+                    }
+
+                    document.getElementById('dictResWord').innerText = currentDictWord.word || query;
                     document.getElementById('dictResPhonetic').innerText = currentDictWord.phonetic || "[ - ]";
-                    document.getElementById('dictResMeaning').innerText = currentDictWord.meaning;
-                    document.getElementById('dictResExampleEn').innerText = currentDictWord.exampleEn;
-                    document.getElementById('dictResExampleKo').innerText = currentDictWord.exampleKo;
+                    document.getElementById('dictResMeaning').innerText = currentDictWord.meaning || "뜻 없음";
+                    document.getElementById('dictResExampleEn').innerText = currentDictWord.exampleEn || query;
+                    document.getElementById('dictResExampleKo').innerText = currentDictWord.exampleKo || "";
 
                     document.getElementById('dictLoading').classList.add('hidden');
                     document.getElementById('dictResultArea').classList.remove('hidden');
@@ -718,6 +712,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                alert("단어 정보를 해석하는 중 오류가 발생했습니다. 다시 시도해 주세요.");
             } finally {
                 document.getElementById('dictLoading').classList.add('hidden');
             }
@@ -768,7 +763,7 @@
         }
 
         async function extractWordsFromImage(base64Data, mimeType, apiKey) {
-            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), 1 simple example sentence in English (exampleEn), and its Korean translation (exampleKo). Output strictly in JSON format as an array of objects with keys: word, phonetic, meaning, exampleEn, exampleKo.";
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), 1 simple example sentence in English (exampleEn), and its Korean translation (exampleKo). Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
             const userQuery = "Extract all English words from this image along with phonetic transcriptions, meanings, and examples in JSON format.";
 
             const payload = {
@@ -781,23 +776,6 @@
                         ]
                     }
                 ],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "ARRAY",
-                        items: {
-                            type: "OBJECT",
-                            properties: {
-                                word: { type: "STRING" },
-                                phonetic: { type: "STRING" },
-                                meaning: { type: "STRING" },
-                                exampleEn: { type: "STRING" },
-                                exampleKo: { type: "STRING" }
-                            },
-                            propertyOrdering: ["word", "phonetic", "meaning", "exampleEn", "exampleKo"]
-                        }
-                    }
-                },
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
@@ -823,8 +801,16 @@
                 const result = await response.json();
                 const candidate = result.candidates?.[0];
                 if (candidate && candidate.content?.parts?.[0]?.text) {
-                    const text = candidate.content.parts[0].text;
-                    const parsed = JSON.parse(text);
+                    let text = candidate.content.parts[0].text;
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const jsonMatch = text.match(/\[[\s\S]*\]/);
+                    let parsed;
+                    if (jsonMatch) {
+                        parsed = JSON.parse(jsonMatch[0]);
+                    } else {
+                        parsed = JSON.parse(text);
+                    }
+
                     if (Array.isArray(parsed) && parsed.length > 0) {
                         wordsData = parsed;
                         currentIndex = 0;
@@ -1065,25 +1051,11 @@
             btn.disabled = true;
             btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 분석 중...`;
 
-            const systemPrompt = "You are an expert English teacher. Provide accurate information for the given word in strict JSON format with keys: word, phonetic (IPA format like [æpəl]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example).";
+            const systemPrompt = "You are an expert English teacher. Provide accurate information for the given word in valid JSON format only with keys: word, phonetic (IPA format like [æpəl]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example). Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
             const userQuery = `Provide details for the word "${word}" in JSON.`;
 
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                        type: "OBJECT",
-                        properties: {
-                            word: { type: "STRING" },
-                            phonetic: { type: "STRING" },
-                            meaning: { type: "STRING" },
-                            exampleEn: { type: "STRING" },
-                            exampleKo: { type: "STRING" }
-                        },
-                        propertyOrdering: ["word", "phonetic", "meaning", "exampleEn", "exampleKo"]
-                    }
-                },
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
@@ -1106,9 +1078,12 @@
                 }
 
                 const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
                 if (text) {
-                    const data = JSON.parse(text);
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    const data = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+
                     if (data.phonetic) document.getElementById('editPhoneticInput').value = data.phonetic;
                     if (data.meaning) document.getElementById('editMeaningInput').value = data.meaning;
                     if (data.exampleEn) document.getElementById('editExampleEnInput').value = data.exampleEn;
@@ -1116,6 +1091,7 @@
                 }
             } catch (err) {
                 console.error(err);
+                alert("자동 채우기 중 오류가 발생했습니다.");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
@@ -1154,6 +1130,95 @@
 
             closeWordEditorModal();
             showCardView();
+        }
+
+        function showLoading(msg) {
+            document.getElementById('uploadView').classList.add('hidden');
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('loadingText').innerText = msg;
+            document.getElementById('loadingView').classList.remove('hidden');
+        }
+
+        function showCardView() {
+            document.getElementById('uploadView').classList.add('hidden');
+            document.getElementById('loadingView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('cardView').classList.remove('hidden');
+            renderCard();
+            renderWordList();
+        }
+
+        function startSpellTest(onlyIncorrect) {
+            if (wordsData.length === 0) return;
+            testWords = onlyIncorrect ? [...incorrectWords] : [...wordsData];
+            if (testWords.length === 0) {
+                alert("테스트할 단어가 없습니다!");
+                return;
+            }
+            testIndex = 0;
+            userAnswers = new Array(testWords.length).fill('');
+            
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('testView').classList.remove('hidden');
+
+            playCurrentTestAudio();
+            setTimeout(() => {
+                document.getElementById('testSpellingInput').focus();
+            }, 100);
+        }
+
+        function playCurrentTestAudio() {
+            if (testWords.length === 0 || testIndex >= testWords.length) return;
+            const item = testWords[testIndex];
+            document.getElementById('testProgressIndicator').innerText = `Test ${testIndex + 1} / ${testWords.length}`;
+            document.getElementById('testSpellingInput').value = '';
+
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+
+            // Word twice + example sentence once
+            const u1 = new SpeechSynthesisUtterance(item.word);
+            u1.lang = 'en-US'; u1.rate = 0.85;
+
+            const u2 = new SpeechSynthesisUtterance(item.word);
+            u2.lang = 'en-US'; u2.rate = 0.85;
+
+            const u3 = new SpeechSynthesisUtterance(item.exampleEn);
+            u3.lang = 'en-US'; u3.rate = 0.9;
+
+            u1.onend = () => { window.speechSynthesis.speak(u2); };
+            u2.onend = () => { window.speechSynthesis.speak(u3); };
+
+            window.speechSynthesis.speak(u1);
+        }
+
+        function playSpecificAudio(word, exampleEn) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const u1 = new SpeechSynthesisUtterance(word);
+            u1.lang = 'en-US'; u1.rate = 0.85;
+            const u3 = new SpeechSynthesisUtterance(exampleEn);
+            u3.lang = 'en-US'; u3.rate = 0.9;
+            u1.onend = () => { window.speechSynthesis.speak(u3); };
+            window.speechSynthesis.speak(u1);
+        }
+
+        function submitTestAnswer() {
+            const inputVal = document.getElementById('testSpellingInput').value.trim();
+            userAnswers[testIndex] = inputVal;
+
+            testIndex++;
+            if (testIndex < testWords.length) {
+                playCurrentTestAudio();
+                document.getElementById('testSpellingInput').value = '';
+                document.getElementById('testSpellingInput').focus();
+            } else {
+                showTestSummary();
+            }
         }
     </script>
 </body>
