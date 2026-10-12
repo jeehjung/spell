@@ -319,39 +319,45 @@
         <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-sm sm:max-w-md w-full card-shadow border border-slate-100 relative my-auto">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-base font-extrabold text-slate-900" id="wordEditModalTitle">단어 편집</h3>
-                <button onclick="closeWordEditorModal()" class="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                <button type="button" onclick="closeWordEditorModal()" class="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
                     <i class="fa-solid fa-xmark text-xs"></i>
                 </button>
             </div>
 
             <div class="space-y-3 text-xs">
                 <div>
-                    <label class="block font-bold text-slate-700 mb-1">단어 (Word)</label>
-                    <input type="text" id="editWordInput" placeholder="예: apple" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold">
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-bold text-slate-700">단어 (Word)</label>
+                        <!-- AI Auto-fill Button -->
+                        <button type="button" onclick="autoFillWordInfo()" id="aiFillBtn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1 text-[11px] border border-indigo-200">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> AI로 자동 채우기
+                        </button>
+                    </div>
+                    <input type="text" id="editWordInput" placeholder="예: apple (입력 후 AI 자동채우기 클릭)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">발음기호 (Phonetic)</label>
-                    <input type="text" id="editPhoneticInput" placeholder="예: [æpəl]" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-mono">
+                    <input type="text" id="editPhoneticInput" placeholder="자동 생성 또는 직접 입력" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-mono">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">뜻 (Meaning)</label>
-                    <input type="text" id="editMeaningInput" placeholder="예: 사과" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                    <input type="text" id="editMeaningInput" placeholder="자동 생성 또는 직접 입력" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">영어 예문 (Example En)</label>
-                    <input type="text" id="editExampleEnInput" placeholder="예: I eat an apple every morning." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                    <input type="text" id="editExampleEnInput" placeholder="자동 생성 또는 직접 입력" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
                 </div>
                 <div>
                     <label class="block font-bold text-slate-700 mb-1">예문 해석 (Example Ko)</label>
-                    <input type="text" id="editExampleKoInput" placeholder="예: 나는 매일 아침 사과를 먹는다." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                    <input type="text" id="editExampleKoInput" placeholder="자동 생성 또는 직접 입력" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
                 </div>
             </div>
 
             <div class="flex gap-2 mt-5">
-                <button onclick="closeWordEditorModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-xl transition text-xs">
+                <button type="button" onclick="closeWordEditorModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-xl transition text-xs">
                     취소
                 </button>
-                <button onclick="saveWordEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md">
+                <button type="button" onclick="saveWordEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md">
                     저장하기
                 </button>
             </div>
@@ -902,6 +908,76 @@
 
             document.getElementById('wordEditModal').classList.remove('hidden');
             document.getElementById('editWordInput').focus();
+        }
+
+        async function autoFillWordInfo() {
+            const word = document.getElementById('editWordInput').value.trim();
+            if (!word) {
+                alert("자동 채우기를 진행할 단어를 먼저 입력해 주세요.");
+                return;
+            }
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey) {
+                openApiKeyModal();
+                return;
+            }
+
+            const btn = document.getElementById('aiFillBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 분석 중...`;
+
+            const systemPrompt = "You are an expert English teacher. Provide accurate information for the given word in strict JSON format with keys: word, phonetic (IPA format like [æpəl]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example).";
+            const userQuery = `Provide details for the word "${word}" in JSON.`;
+
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: userQuery }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            word: { type: "STRING" },
+                            phonetic: { type: "STRING" },
+                            meaning: { type: "STRING" },
+                            exampleEn: { type: "STRING" },
+                            exampleKo: { type: "STRING" }
+                        },
+                        propertyOrdering: ["word", "phonetic", "meaning", "exampleEn", "exampleKo"]
+                    }
+                },
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) throw new Error("AI 조회 실패");
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    const data = JSON.parse(text);
+                    if (data.phonetic) document.getElementById('editPhoneticInput').value = data.phonetic;
+                    if (data.meaning) document.getElementById('editMeaningInput').value = data.meaning;
+                    if (data.exampleEn) document.getElementById('editExampleEnInput').value = data.exampleEn;
+                    if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
+                } else {
+                    throw new Error("정보를 찾을 수 없습니다.");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("AI 자동 채우기 중 오류가 발생했습니다. API Key를 확인해 주세요.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         }
 
         function closeWordEditorModal() {
