@@ -32,10 +32,6 @@
                 <i class="fa-solid fa-key text-amber-500"></i>
                 <span id="apiKeyBtnText">API Key 설정</span>
             </button>
-            <button type="button" onclick="openHistoryModal()" class="cursor-pointer text-xs bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
-                <i class="fa-solid fa-clock-rotate-left text-amber-600"></i>
-                <span>저장된 단어장 불러오기</span>
-            </button>
             <button type="button" onclick="openDictionaryModal()" class="cursor-pointer text-xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-book-open text-indigo-600"></i>
                 <span>개별 단어 사전 검색</span>
@@ -288,9 +284,15 @@
                     <i class="fa-solid fa-xmark text-xs"></i>
                 </button>
             </div>
-
+            
             <div id="historyListContainer" class="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
-                <!-- Dynamic history items -->
+                <!-- History items rendered dynamically -->
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
+                <button type="button" onclick="closeHistoryModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs">
+                    닫기
+                </button>
             </div>
         </div>
     </div>
@@ -302,10 +304,20 @@
                 <i class="fa-solid fa-key"></i>
             </div>
             <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
-            <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+            <p class="text-xs text-slate-500 mb-3 leading-relaxed">
                 단어장 사진 분석 및 사전 조회를 위해 API Key가 필요합니다.<br>
                 입력하신 Key는 <strong>브라우저 내부(localStorage)에 안전하게 저장</strong>됩니다.
             </p>
+
+            <!-- Usage Limit Notice Box -->
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4 text-xs text-amber-900 space-y-1">
+                <p class="font-bold flex items-center gap-1.5 text-amber-800">
+                    <i class="fa-solid fa-triangle-exclamation"></i> API 오류 또는 사용량 초과 안내
+                </p>
+                <p class="leading-relaxed text-amber-700">
+                    최근 <strong>Quota(사용량 한도 초과 - HTTP 429)</strong> 또는 결제/모델 권한 문제로 오류가 발생할 수 있습니다. 무료 Key의 경우 분당/일일 요청 제한이 있으니 잠시 후 시도하거나 새로운 프로젝트의 Key를 발급받아 보세요.
+                </p>
+            </div>
 
             <div class="mb-4">
                 <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key</label>
@@ -473,6 +485,10 @@
             }
 
             decks.forEach((deck) => {
+                const sampleWords = deck.words && deck.words.length > 0 
+                    ? deck.words.slice(0, 3).map(w => w.word).join(', ') + (deck.words.length > 3 ? ' 외' : '')
+                    : '단어 없음';
+
                 const item = document.createElement('div');
                 item.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between transition hover:border-amber-300";
                 item.innerHTML = `
@@ -481,7 +497,8 @@
                             <h4 class="font-bold text-sm text-slate-800 truncate">${deck.title}</h4>
                             <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
                         </div>
-                        <p class="text-[11px] text-slate-400 mt-0.5">${deck.date}</p>
+                        <p class="text-[11px] text-slate-500 mt-1 truncate font-medium"><span class="text-slate-400">포함 단어:</span> ${sampleWords}</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">${deck.date}</p>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
                         <button onclick="loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm">
@@ -727,7 +744,11 @@
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`API 오류 (${response.status}): Key를 다시 확인해 주세요.`);
+                if (response.status === 429) {
+                    throw new Error("API 사용량 한도(Quota)를 초과했습니다. 잠시 후 다시 시도하거나 새 API Key를 발급받아 주세요.");
+                } else {
+                    throw new Error(`API 오류 (${response.status}): Key 또는 네트워크 상태를 다시 확인해 주세요.`);
+                }
             }
 
             const result = await response.json();
