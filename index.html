@@ -383,6 +383,8 @@
     <script>
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.8-flash";
+        const OVERQUOTA_MSG = "api 사용량이 초과되었습니다. 추가 결제를 하거나, 내일 다시 시도해주세요. 저장된 단어장 사용은 제한없이 가능합니다";
+
         let editingWordIdx = -1;
 
         let wordsData = [];
@@ -690,6 +692,11 @@
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
+                    if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
+                    }
                     throw new Error(`API 요청 실패 (${response.status}): ${errorDetails}`);
                 }
 
@@ -803,6 +810,11 @@
 
             if (!response.ok) {
                 const errText = await response.text();
+                if (response.status === 429 || errText.includes("RESOURCE_EXHAUSTED") || errText.includes("quota")) {
+                    alert(OVERQUOTA_MSG);
+                } else {
+                    alert(`API 오류 (${response.status}): ${errText}`);
+                }
                 throw new Error(`API 오류 (${response.status}): ${errText}`);
             }
 
@@ -1193,7 +1205,15 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) throw new Error("AI 조회 실패");
+                if (!response.ok) {
+                    const errorDetails = await response.text();
+                    if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`AI 조회 실패: ${errorDetails}`);
+                    }
+                    throw new Error("AI 조회 실패");
+                }
 
                 const result = await response.json();
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
