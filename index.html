@@ -32,6 +32,10 @@
                 <i class="fa-solid fa-key text-amber-500"></i>
                 <span id="apiKeyBtnText">API Key 설정</span>
             </button>
+            <button type="button" onclick="openHistoryModal()" class="cursor-pointer text-xs bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-clock-rotate-left text-amber-600"></i>
+                <span>저장된 단어장 불러오기</span>
+            </button>
             <button type="button" onclick="openDictionaryModal()" class="cursor-pointer text-xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-book-open text-indigo-600"></i>
                 <span>개별 단어 사전 검색</span>
@@ -49,169 +53,13 @@
             <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">단어장 사진을 올려주세요</h2>
             <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
 
-            <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
-                <i class="fa-solid fa-image mr-2"></i> 사진 파일 선택하기
-                <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
-            </label>
-        </div>
-
-        <!-- Loading Spinner View -->
-        <div id="loadingView" class="hidden bg-white rounded-3xl p-10 card-shadow border border-slate-100 text-center">
-            <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <h3 class="text-lg font-bold text-slate-800" id="loadingText">AI가 이미지를 분석하고 있습니다...</h3>
-            <p class="text-xs text-slate-500 mt-1">단어 추출 및 발음기호/예문을 생성 중입니다.</p>
-        </div>
-
-        <div id="cardView" class="hidden flex flex-col gap-4">
-            <!-- Progress & Controls Top -->
-            <div class="flex items-center justify-between px-2">
-                <button onclick="backToUpload()" class="text-xs font-semibold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200 transition">
-                    <i class="fa-solid fa-arrow-left mr-1"></i> 다른 사진 올리기
-                </button>
-                <div class="flex items-center gap-2">
-                    <button onclick="startSpellTest()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-md transition transform active:scale-95 flex items-center gap-1.5">
-                        <i class="fa-solid fa-pen-clip"></i> Spell Test 시작!
-                    </button>
-                    <div class="bg-indigo-50 text-indigo-700 font-bold px-3 py-1 rounded-full text-xs" id="progressIndicator">
-                        1 / 10
-                    </div>
-                </div>
-            </div>
-
-            <!-- Flash Card Main -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 flex flex-col items-center relative overflow-hidden min-h-[360px] justify-between">
-                
-                <!-- Top Audio & Word Type -->
-                <div class="w-full flex justify-between items-center text-xs text-slate-400 font-medium">
-                    <span id="wordIndexBadge" class="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">Word #1</span>
-                    <button onclick="speakCurrentWord()" class="w-10 h-10 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center transition-all shadow-sm active:scale-95 pulse-btn" title="발음 듣기">
-                        <i class="fa-solid fa-volume-high text-lg"></i>
-                    </button>
-                </div>
-
-                <!-- Word & Meaning Center -->
-                <div class="text-center my-auto py-2 w-full">
-                    <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight mb-1">word</h2>
-                    <p id="cardPhonetic" class="text-slate-400 font-mono text-sm sm:text-base mb-2">[wɜːrd]</p>
-                    <div class="flex items-center justify-center gap-2 text-indigo-600 font-semibold text-sm sm:text-base mb-4">
-                        <span id="cardMeaning">단어 뜻</span>
-                    </div>
-                    
-                    <!-- Example Box -->
-                    <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 text-left w-full mt-2">
-                        <div class="flex items-center justify-between mb-1">
-                            <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">Example Sentence</span>
-                            <button onclick="speakExample()" class="text-slate-400 hover:text-indigo-600 text-xs">
-                                <i class="fa-solid fa-volume-low"></i> 예문 듣기
-                            </button>
-                        </div>
-                        <p id="cardExampleEn" class="text-sm font-semibold text-slate-800">Example sentence goes here.</p>
-                        <p id="cardExampleKo" class="text-xs text-slate-500 mt-0.5">예문 해석이 여기에 표시됩니다.</p>
-                    </div>
-                </div>
-
-                <!-- Navigation Bottom Buttons inside Card -->
-                <div class="w-full grid grid-cols-2 gap-3 pt-4 border-t border-slate-100">
-                    <button onclick="prevCard()" id="prevBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition flex items-center justify-center text-sm disabled:opacity-40 disabled:cursor-not-allowed">
-                        <i class="fa-solid fa-chevron-left mr-2"></i> 이전
-                    </button>
-                    <button onclick="nextCard()" id="nextBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center text-sm shadow-md shadow-indigo-100">
-                        다음 <i class="fa-solid fa-chevron-right ml-2"></i>
-                    </button>
-                </div>
-            </div>
-
-            <!-- List drawer toggle button -->
-            <button onclick="toggleWordList()" class="bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold py-3 px-4 rounded-2xl shadow-sm border border-slate-200 transition flex items-center justify-between">
-                <span><i class="fa-solid fa-list-ul mr-2 text-indigo-500"></i> 전체 단어 목록 보기 (<span id="totalWordCount">0</span>개)</span>
-                <i class="fa-solid fa-chevron-down" id="listToggleIcon"></i>
-            </button>
-
-            <!-- Word List Accordion -->
-            <div id="wordListContainer" class="hidden bg-white rounded-2xl p-4 card-shadow border border-slate-100 max-h-72 overflow-y-auto flex flex-col gap-2">
-                <div class="flex justify-between items-center pb-2 border-b border-slate-100 shrink-0">
-                    <span class="text-xs font-bold text-slate-500">단어 편집 및 관리</span>
-                    <button onclick="openWordEditorModal(-1)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-2.5 py-1 rounded-lg transition shadow-sm flex items-center gap-1">
-                        <i class="fa-solid fa-plus text-[10px]"></i> 단어 직접 추가
-                    </button>
-                </div>
-                <div id="wordListItems" class="space-y-2 overflow-y-auto">
-                    <!-- Dynamic items -->
-                </div>
-            </div>
-        </div>
-
-        <div id="testView" class="hidden flex flex-col gap-4">
-            <!-- Test Header Controls -->
-            <div class="flex items-center justify-between px-2">
-                <button onclick="exitSpellTest()" class="text-xs font-semibold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200 transition">
-                    <i class="fa-solid fa-xmark mr-1"></i> 카드 학습으로 돌아가기
-                </button>
-                <div class="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-full text-xs" id="testProgressIndicator">
-                    Test 1 / 10
-                </div>
-            </div>
-
-            <!-- Test Card Main -->
-            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 flex flex-col items-center relative min-h-[380px] justify-between text-center">
-                
-                <!-- Audio Cue Buttons -->
-                <div class="w-full flex justify-center gap-2 my-2">
-                    <button onclick="playTestAudio('sentence')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition border border-emerald-200 shadow-sm active:scale-95">
-                        <i class="fa-solid fa-volume-high text-base text-emerald-600"></i> 예문 다시 듣기
-                    </button>
-                    <button onclick="playTestAudio('word')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition border border-indigo-200 shadow-sm active:scale-95">
-                        <i class="fa-solid fa-volume-low text-base text-indigo-600"></i> 단어만 듣기
-                    </button>
-                </div>
-
-                <!-- Test Input Area -->
-                <div class="w-full my-auto py-4">
-                    <div class="space-y-2">
-                        <label class="block text-xs font-semibold text-slate-500 text-left pl-1">소리를 듣고 아래에 스펠링을 입력하세요:</label>
-                        <input type="text" id="testSpellingInput" placeholder="스펠링을 입력하세요" autocomplete="off" spellcheck="false"
-                               onkeyup="if(event.key==='Enter') checkTestAnswer()" 
-                               class="w-full text-center text-2xl font-black tracking-wider py-3 px-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-emerald-500 focus:outline-none transition">
-                    </div>
-
-                    <!-- Result Answer Reveal Box -->
-                    <div id="testResultBox" class="hidden mt-4 p-4 rounded-2xl border transition-all text-left">
-                        <div class="flex items-center gap-2 font-bold text-sm mb-1" id="testResultBadge"></div>
-                        <p class="text-sm font-extrabold text-slate-900" id="testCorrectWord">정답: </p>
-                        <p class="text-xs text-slate-600 mt-0.5" id="testFullSentence">원문: </p>
-                    </div>
-                </div>
-
-                <!-- Test Bottom Action Buttons -->
-                <div class="w-full grid grid-cols-2 gap-3 pt-4 border-t border-slate-100" id="testActionBtns">
-                    <button onclick="checkTestAnswer()" id="checkAnswerBtn" class="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-emerald-100 flex items-center justify-center text-sm">
-                        <i class="fa-solid fa-check mr-2"></i> 정답 확인하기
-                    </button>
-                    <button onclick="nextTestCard()" id="nextTestBtn" class="hidden col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-indigo-100 flex items-center justify-center text-sm">
-                        다음 문제 <i class="fa-solid fa-arrow-right ml-2"></i>
-                    </button>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Test Summary View -->
-        <div id="testSummaryView" class="hidden bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center">
-            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
-                <i class="fa-solid fa-trophy"></i>
-            </div>
-            <h3 class="text-xl font-black text-slate-900 mb-1">Spell Test 완료!</h3>
-            <p class="text-sm text-slate-500 mb-6" id="testScoreText">총 0문제 중 0문제를 맞혔습니다.</p>
-
-            <div class="flex flex-col sm:flex-row gap-3">
-                <button onclick="startSpellTest(false)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">
-                    <i class="fa-solid fa-rotate-right mr-1"></i> 전체 다시 테스트
-                </button>
-                <button id="retryIncorrectBtn" onclick="startSpellTest(true)" class="hidden flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
-                    <i class="fa-solid fa-pen-to-square mr-1"></i> 틀린 문제만 다시 풀기
-                </button>
-                <button onclick="exitSpellTest()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
-                    학습 카드로 돌아가기
+            <div class="flex flex-col gap-3">
+                <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
+                    <i class="fa-solid fa-image mr-2"></i> 사진 파일 선택하기
+                    <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+                </label>
+                <button type="button" onclick="openHistoryModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-6 rounded-2xl transition text-xs flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-folder-open text-slate-500"></i> 이전에 학습한 단어장 불러오기
                 </button>
             </div>
         </div>
@@ -261,21 +109,41 @@
                     </button>
                 </div>
                 <div>
-                    <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">뜻 (Meaning)</span>
-                    <p id="dictResMeaning" class="text-xs font-bold text-slate-800">단어 뜻</p>
-                </div>
-                <div>
-                    <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">예문 (Example)</span>
-                    <p id="dictResExampleEn" class="text-xs font-semibold text-slate-800">Example sentence.</p>
-                    <p id="dictResExampleKo" class="text-[11px] text-slate-500 mt-0.5">예문 해석입니다.</p>
+        <!-- Word List Accordion -->
+        <div id="wordListContainer" class="hidden bg-white rounded-2xl p-4 card-shadow border border-slate-100 max-h-72 overflow-y-auto flex flex-col gap-2">
+            <div class="flex justify-between items-center pb-2 border-b border-slate-100 shrink-0">
+                <span class="text-xs font-bold text-slate-500">단어 편집 및 관리</span>
+                <div class="flex items-center gap-1.5">
+                    <button onclick="saveCurrentDeckPrompt()" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-2.5 py-1 rounded-lg transition shadow-sm flex items-center gap-1">
+                        <i class="fa-solid fa-bookmark text-[10px]"></i> 이 단어장 저장하기
+                    </button>
+                    <button onclick="openWordEditorModal(-1)" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-2.5 py-1 rounded-lg transition shadow-sm flex items-center gap-1">
+                        <i class="fa-solid fa-plus text-[10px]"></i> 단어 직접 추가
+                    </button>
                 </div>
             </div>
-
-            <!-- Add to Deck Action Button -->
-            <div id="dictAddAction" class="hidden shrink-0 pt-1">
-                <button onclick="addDictWordToStudyDeck()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-1.5">
-                    <i class="fa-solid fa-plus text-xs"></i> 내 학습 단어장에 추가하기
+            <div id="wordListItems" class="space-y-2 overflow-y-auto">
+                <!-- Dynamic items -->
+            </div>
+        </div>
+    </div>
+    <!-- Saved History Modal -->
+    <div id="historyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl p-4 sm:p-5 max-w-md w-full card-shadow border border-slate-100 relative my-auto max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-sm font-bold">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <h3 class="text-base font-extrabold text-slate-900">저장된 단어장 보관함</h3>
+                </div>
+                <button onclick="closeHistoryModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
                 </button>
+            </div>
+
+            <div id="historyListContainer" class="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
+                <!-- Dynamic history items -->
             </div>
         </div>
     </div>
@@ -370,6 +238,7 @@
 
         let wordsData = [];
         let currentIndex = 0;
+        let currentDeckTitle = "";
 
         // Test mode states
         let testWords = [];
@@ -384,6 +253,121 @@
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
         });
+
+        // LocalStorage History Helpers
+        function getSavedDecks() {
+            try {
+                return JSON.parse(localStorage.getItem('saved_word_decks') || "[]");
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveDecksToStorage(decks) {
+            localStorage.setItem('saved_word_decks', JSON.stringify(decks));
+        }
+
+        function saveDeckToHistory(title, words) {
+            if (!words || words.length === 0) return;
+            const decks = getSavedDecks();
+            const deckName = title || `단어장 (${new Date().toLocaleDateString('ko-KR')} ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})})`;
+            
+            // Check if title exists
+            const existingIdx = decks.findIndex(d => d.title === deckName);
+            const deckData = {
+                id: existingIdx >= 0 ? decks[existingIdx].id : Date.now(),
+                title: deckName,
+                date: new Date().toLocaleDateString('ko-KR'),
+                count: words.length,
+                words: words
+            };
+
+            if (existingIdx >= 0) {
+                decks[existingIdx] = deckData;
+            } else {
+                decks.unshift(deckData);
+            }
+            saveDecksToStorage(decks);
+            currentDeckTitle = deckName;
+        }
+
+        function saveCurrentDeckPrompt() {
+            if (wordsData.length === 0) return;
+            const defaultName = currentDeckTitle || `단어장 (${new Date().toLocaleDateString('ko-KR')} ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})})`;
+            const userTitle = prompt("저장할 단어장의 이름을 입력해주세요:", defaultName);
+            if (userTitle !== null && userTitle.trim() !== "") {
+                saveDeckToHistory(userTitle.trim(), wordsData);
+                alert(`"${userTitle.trim()}" 단어장이 저장되었습니다!`);
+            }
+        }
+
+        function openHistoryModal() {
+            renderHistoryList();
+            document.getElementById('historyModal').classList.remove('hidden');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        function renderHistoryList() {
+            const decks = getSavedDecks();
+            const container = document.getElementById('historyListContainer');
+            container.innerHTML = '';
+
+            if (decks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                        <p class="text-xs">저장된 단어장이 없습니다.<br>사진을 업로드하면 자동으로 최근 단어장이 보관됩니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            decks.forEach((deck) => {
+                const item = document.createElement('div');
+                item.className = "bg-slate-50 border border-slate-200 rounded-2xl p-3 flex items-center justify-between transition hover:border-amber-300";
+                item.innerHTML = `
+                    <div class="cursor-pointer flex-1 min-w-0 mr-3" onclick="loadDeckFromHistory(${deck.id})">
+                        <div class="flex items-center gap-1.5">
+                            <h4 class="font-bold text-sm text-slate-800 truncate">${deck.title}</h4>
+                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-0.5">${deck.date}</p>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm">
+                            학습하기
+                        </button>
+                        <button onclick="deleteDeckFromHistory(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function loadDeckFromHistory(id) {
+            const decks = getSavedDecks();
+            const selected = decks.find(d => d.id === id);
+            if (selected && selected.words && selected.words.length > 0) {
+                wordsData = [...selected.words];
+                currentDeckTitle = selected.title;
+                currentIndex = 0;
+                closeHistoryModal();
+                showCardView();
+            }
+        }
+
+        function deleteDeckFromHistory(id) {
+            if (!confirm("이 단어장을 삭제하시겠습니까?")) return;
+            let decks = getSavedDecks();
+            decks = decks.filter(d => d.id !== id);
+            saveDecksToStorage(decks);
+            renderHistoryList();
+        }
 
         function getStoredApiKey() {
             return localStorage.getItem('gemini_api_key') || HARDCODED_API_KEY || "";
@@ -604,6 +588,11 @@
                 if (Array.isArray(parsed) && parsed.length > 0) {
                     wordsData = parsed;
                     currentIndex = 0;
+                    
+                    // Auto save to history
+                    const autoTitle = `단어장 (${new Date().toLocaleDateString('ko-KR')} ${new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'})})`;
+                    saveDeckToHistory(autoTitle, wordsData);
+
                     showCardView();
                     return;
                 }
@@ -627,24 +616,24 @@
             renderCard();
             renderWordList();
         }
-
-        function backToUpload() {
-            document.getElementById('uploadView').classList.remove('hidden');
-            document.getElementById('loadingView').classList.add('hidden');
-            document.getElementById('cardView').classList.add('hidden');
-            document.getElementById('testView').classList.add('hidden');
-            document.getElementById('testSummaryView').classList.add('hidden');
-            document.getElementById('imageInput').value = '';
+        // Fisher-Yates Array Shuffle Helper
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
         }
 
-        // Spell Test Functions
+        // Spell Test Functions (Updated to Shuffle Words)
         function startSpellTest(onlyIncorrect = false) {
             if (wordsData.length === 0) return;
 
             if (onlyIncorrect && incorrectWords.length > 0) {
-                testWords = [...incorrectWords];
+                testWords = shuffleArray(incorrectWords);
             } else {
-                testWords = [...wordsData];
+                testWords = shuffleArray(wordsData);
             }
 
             testIndex = 0;
