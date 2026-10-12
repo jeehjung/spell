@@ -26,6 +26,14 @@
         </div>
         <h1 class="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">영어 단어장 카드 학습</h1>
         <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
+
+        <!-- API Key Status / Setting Button -->
+        <div class="mt-3 flex justify-center">
+            <button onclick="openApiKeyModal()" class="text-xs bg-white/80 hover:bg-white text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-key text-amber-500"></i>
+                <span id="apiKeyBtnText">API Key 설정</span>
+            </button>
+        </div>
     </header>
 
     <main class="w-full max-w-xl flex-1 flex flex-col justify-center my-2">
@@ -198,10 +206,44 @@
             </div>
         </div>
 
+        <!-- API Key Setup Modal -->
+        <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
+                <div class="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
+                    <i class="fa-solid fa-key"></i>
+                </div>
+                <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
+                <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                    단어장 사진을 AI로 분석하기 위해 API Key가 필요합니다.<br>
+                    입력하신 Key는 <strong>브라우저 내부(localStorage)에 안전하게 저장</strong>되어 재방문 시에도 유지됩니다.
+                </p>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key</label>
+                    <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-mono">
+                </div>
+
+                <div class="flex items-center justify-between gap-2 text-xs text-slate-400 mb-5">
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 무료 API Key 발급받기
+                    </a>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="closeApiKeyModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">
+                        취소
+                    </button>
+                    <button onclick="saveApiKey()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                        저장하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
     </main>
 
     <script>
-        // Hardcoded API key for seamless deployment
+        // Optional fallback key (leave empty to require user input)
         const HARDCODED_API_KEY = ""; 
 
         let wordsData = [];
@@ -214,9 +256,55 @@
         let isAnswerChecked = false;
         let incorrectWords = [];
 
+        // Check & retrieve API Key on startup
+        window.addEventListener('DOMContentLoaded', () => {
+            updateApiKeyUI();
+        });
+
+        function getStoredApiKey() {
+            return localStorage.getItem('gemini_api_key') || HARDCODED_API_KEY || "";
+        }
+
+        function updateApiKeyUI() {
+            const key = getStoredApiKey();
+            const btnText = document.getElementById('apiKeyBtnText');
+            if (key && key.trim() !== "") {
+                btnText.innerText = "API Key 설정됨";
+            } else {
+                btnText.innerText = "API Key 등록 필요";
+            }
+        }
+
+        function openApiKeyModal() {
+            document.getElementById('apiKeyInput').value = getStoredApiKey();
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+        }
+
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+        }
+
+        function saveApiKey() {
+            const inputVal = document.getElementById('apiKeyInput').value.trim();
+            if (inputVal) {
+                localStorage.setItem('gemini_api_key', inputVal);
+            } else {
+                localStorage.removeItem('gemini_api_key');
+            }
+            updateApiKeyUI();
+            closeApiKeyModal();
+        }
+
         async function handleImageUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey || apiKey.trim() === "") {
+                openApiKeyModal();
+                event.target.value = '';
+                return;
+            }
 
             showLoading("이미지에서 단어 추출 중...");
 
@@ -224,10 +312,10 @@
             reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
                 try {
-                    await extractWordsFromImage(base64Data, file.type, HARDCODED_API_KEY);
+                    await extractWordsFromImage(base64Data, file.type, apiKey);
                 } catch (err) {
                     console.error("Extraction error:", err);
-                    alert("단어 추출 중 오류가 발생했습니다. 콘솔창(F12)을 확인해 주세요.");
+                    alert("단어 추출 중 오류가 발생했습니다: " + err.message);
                     backToUpload();
                 }
             };
@@ -277,7 +365,7 @@
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`API Error: ${response.status} - ${errText}`);
+                throw new Error(`API Error ${response.status}: ${errText}`);
             }
 
             const result = await response.json();
@@ -292,7 +380,7 @@
                     return;
                 }
             }
-            throw new Error("No words extracted from image response");
+            throw new Error("이미지에서 단어를 추출하지 못했습니다.");
         }
 
         function showLoading(text) {
