@@ -20,7 +20,7 @@
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen text-slate-800 flex flex-col items-center justify-between p-4 sm:p-6">
 
-    <header class="w-full max-w-xl text-center py-4 relative">
+    <header class="w-full max-w-xl text-center py-4 relative z-10">
         <div class="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2">
             <i class="fa-solid fa-graduation-cap mr-2"></i> Iun's Word Study
         </div>
@@ -28,19 +28,20 @@
 
         <!-- Top Navigation / Utility Bar -->
         <div class="mt-3 flex justify-center gap-2">
-            <button onclick="openApiKeyModal()" class="text-xs bg-white/80 hover:bg-white text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full transition flex items-center gap-1.5 font-medium">
+            <button type="button" onclick="openApiKeyModal()" class="cursor-pointer text-xs bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-600 border border-slate-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-key text-amber-500"></i>
                 <span id="apiKeyBtnText">API Key 설정</span>
             </button>
-            <button onclick="openDictionaryModal()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 shadow-sm px-3 py-1.5 rounded-full transition flex items-center gap-1.5 font-medium">
+            <button type="button" onclick="openDictionaryModal()" class="cursor-pointer text-xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-book-open text-indigo-600"></i>
                 <span>개별 단어 사전 검색</span>
             </button>
         </div>
     </header>
 
-    <main class="w-full max-w-xl flex-1 flex flex-col justify-center my-2">
+    <main class="w-full max-w-xl flex-1 flex flex-col justify-center my-2 z-0">
 
+        <!-- Image Upload View -->
         <div id="uploadView" class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center transition-all duration-300">
             <div class="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner">
                 <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -54,6 +55,7 @@
             </label>
         </div>
 
+        <!-- Loading Spinner View -->
         <div id="loadingView" class="hidden bg-white rounded-3xl p-10 card-shadow border border-slate-100 text-center">
             <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h3 class="text-lg font-bold text-slate-800" id="loadingText">AI가 이미지를 분석하고 있습니다...</h3>
@@ -140,55 +142,224 @@
         </div>
 
         <div id="testView" class="hidden flex flex-col gap-4">
-        <!-- Word Edit/Add Modal -->
-        <div id="wordEditModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
-            <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-sm sm:max-w-md w-full card-shadow border border-slate-100 relative my-auto">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-base font-extrabold text-slate-900" id="wordEditModalTitle">단어 편집</h3>
-                    <button onclick="closeWordEditorModal()" class="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
-                        <i class="fa-solid fa-xmark text-xs"></i>
+            <!-- Test Header Controls -->
+            <div class="flex items-center justify-between px-2">
+                <button onclick="exitSpellTest()" class="text-xs font-semibold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200 transition">
+                    <i class="fa-solid fa-xmark mr-1"></i> 카드 학습으로 돌아가기
+                </button>
+                <div class="bg-emerald-50 text-emerald-700 font-bold px-3 py-1 rounded-full text-xs" id="testProgressIndicator">
+                    Test 1 / 10
+                </div>
+            </div>
+
+            <!-- Test Card Main -->
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 flex flex-col items-center relative min-h-[380px] justify-between text-center">
+                
+                <!-- Audio Cue Buttons -->
+                <div class="w-full flex justify-center gap-2 my-2">
+                    <button onclick="playTestAudio('sentence')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition border border-emerald-200 shadow-sm active:scale-95">
+                        <i class="fa-solid fa-volume-high text-base text-emerald-600"></i> 예문 다시 듣기
+                    </button>
+                    <button onclick="playTestAudio('word')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition border border-indigo-200 shadow-sm active:scale-95">
+                        <i class="fa-solid fa-volume-low text-base text-indigo-600"></i> 단어만 듣기
                     </button>
                 </div>
 
-                <div class="space-y-3 text-xs">
-                    <div>
-                        <label class="block font-bold text-slate-700 mb-1">단어 (Word)</label>
-                        <input type="text" id="editWordInput" placeholder="예: apple" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold">
+                <!-- Test Input Area -->
+                <div class="w-full my-auto py-4">
+                    <div class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-500 text-left pl-1">소리를 듣고 아래에 스펠링을 입력하세요:</label>
+                        <input type="text" id="testSpellingInput" placeholder="스펠링을 입력하세요" autocomplete="off" spellcheck="false"
+                               onkeyup="if(event.key==='Enter') checkTestAnswer()" 
+                               class="w-full text-center text-2xl font-black tracking-wider py-3 px-4 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:border-emerald-500 focus:outline-none transition">
                     </div>
-                    <div>
-                        <label class="block font-bold text-slate-700 mb-1">발음기호 (Phonetic)</label>
-                        <input type="text" id="editPhoneticInput" placeholder="예: [æpəl]" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-mono">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-slate-700 mb-1">뜻 (Meaning)</label>
-                        <input type="text" id="editMeaningInput" placeholder="예: 사과" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-slate-700 mb-1">영어 예문 (Example En)</label>
-                        <input type="text" id="editExampleEnInput" placeholder="예: I eat an apple every morning." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
-                    </div>
-                    <div>
-                        <label class="block font-bold text-slate-700 mb-1">예문 해석 (Example Ko)</label>
-                        <input type="text" id="editExampleKoInput" placeholder="예: 나는 매일 아침 사과를 먹는다." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+
+                    <!-- Result Answer Reveal Box -->
+                    <div id="testResultBox" class="hidden mt-4 p-4 rounded-2xl border transition-all text-left">
+                        <div class="flex items-center gap-2 font-bold text-sm mb-1" id="testResultBadge"></div>
+                        <p class="text-sm font-extrabold text-slate-900" id="testCorrectWord">정답: </p>
+                        <p class="text-xs text-slate-600 mt-0.5" id="testFullSentence">원문: </p>
                     </div>
                 </div>
 
-                <div class="flex gap-2 mt-5">
-                    <button onclick="closeWordEditorModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-xl transition text-xs">
-                        취소
+                <!-- Test Bottom Action Buttons -->
+                <div class="w-full grid grid-cols-2 gap-3 pt-4 border-t border-slate-100" id="testActionBtns">
+                    <button onclick="checkTestAnswer()" id="checkAnswerBtn" class="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-emerald-100 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-check mr-2"></i> 정답 확인하기
                     </button>
-                    <button onclick="saveWordEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md">
-                        저장하기
+                    <button onclick="nextTestCard()" id="nextTestBtn" class="hidden col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-indigo-100 flex items-center justify-center text-sm">
+                        다음 문제 <i class="fa-solid fa-arrow-right ml-2"></i>
                     </button>
                 </div>
+
+            </div>
+        </div>
+
+        <!-- Test Summary View -->
+        <div id="testSummaryView" class="hidden bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center">
+            <div class="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
+                <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h3 class="text-xl font-black text-slate-900 mb-1">Spell Test 완료!</h3>
+            <p class="text-sm text-slate-500 mb-6" id="testScoreText">총 0문제 중 0문제를 맞혔습니다.</p>
+
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="startSpellTest(false)" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">
+                    <i class="fa-solid fa-rotate-right mr-1"></i> 전체 다시 테스트
+                </button>
+                <button id="retryIncorrectBtn" onclick="startSpellTest(true)" class="hidden flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                    <i class="fa-solid fa-pen-to-square mr-1"></i> 틀린 문제만 다시 풀기
+                </button>
+                <button onclick="exitSpellTest()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                    학습 카드로 돌아가기
+                </button>
             </div>
         </div>
 
     </main>
 
+    <!-- Dictionary Lookup Modal -->
+    <div id="dictionaryModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl p-4 sm:p-5 max-w-sm w-full card-shadow border border-slate-100 relative my-auto max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-sm font-bold">
+                        <i class="fa-solid fa-book-open"></i>
+                    </div>
+                    <h3 class="text-base font-extrabold text-slate-900">개별 단어 사전 검색</h3>
+                </div>
+                <button onclick="closeDictionaryModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Compact Search Bar -->
+            <div class="flex gap-1.5 mb-3 shrink-0">
+                <input type="text" id="dictQueryInput" placeholder="단어 입력 (예: apple)" 
+                       onkeyup="if(event.key==='Enter') lookupDictionaryWord()"
+                       class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 font-medium">
+                <button onclick="lookupDictionaryWord()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-md shrink-0">
+                    검색
+                </button>
+            </div>
+
+            <!-- Loader inside Modal -->
+            <div id="dictLoading" class="hidden py-6 text-center shrink-0">
+                <div class="w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p class="text-xs text-slate-500 font-medium">사전 조회 중...</p>
+            </div>
+
+            <!-- Result Display Area -->
+            <div id="dictResultArea" class="hidden flex-1 overflow-y-auto min-h-0 bg-slate-50 rounded-2xl p-3 border border-slate-100 mb-3 space-y-2">
+                <div class="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                    <div>
+                        <span id="dictResWord" class="text-base font-black text-slate-900">word</span>
+                        <span id="dictResPhonetic" class="text-xs text-slate-400 font-mono ml-1.5">[wɜːrd]</span>
+                    </div>
+                    <button onclick="speakDictWord()" class="w-7 h-7 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-full flex items-center justify-center text-xs transition">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">뜻 (Meaning)</span>
+                    <p id="dictResMeaning" class="text-xs font-bold text-slate-800">단어 뜻</p>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider block">예문 (Example)</span>
+                    <p id="dictResExampleEn" class="text-xs font-semibold text-slate-800">Example sentence.</p>
+                    <p id="dictResExampleKo" class="text-[11px] text-slate-500 mt-0.5">예문 해석입니다.</p>
+                </div>
+            </div>
+
+            <!-- Add to Deck Action Button -->
+            <div id="dictAddAction" class="hidden shrink-0 pt-1">
+                <button onclick="addDictWordToStudyDeck()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-plus text-xs"></i> 내 학습 단어장에 추가하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Setup Modal -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
+            <div class="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
+                <i class="fa-solid fa-key"></i>
+            </div>
+            <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
+            <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                단어장 사진 분석 및 사전 조회를 위해 API Key가 필요합니다.<br>
+                입력하신 Key는 <strong>브라우저 내부(localStorage)에 안전하게 저장</strong>됩니다.
+            </p>
+
+            <div class="mb-4">
+                <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key</label>
+                <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-mono">
+            </div>
+
+            <div class="flex items-center justify-between gap-2 text-xs text-slate-400 mb-5">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-indigo-600 font-semibold hover:underline flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> 무료 API Key 발급받기
+                </a>
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="closeApiKeyModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">
+                    취소
+                </button>
+                <button onclick="saveApiKey()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                    저장하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Word Edit/Add Modal -->
+    <div id="wordEditModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-sm sm:max-w-md w-full card-shadow border border-slate-100 relative my-auto">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-extrabold text-slate-900" id="wordEditModalTitle">단어 편집</h3>
+                <button onclick="closeWordEditorModal()" class="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">단어 (Word)</label>
+                    <input type="text" id="editWordInput" placeholder="예: apple" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">발음기호 (Phonetic)</label>
+                    <input type="text" id="editPhoneticInput" placeholder="예: [æpəl]" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-mono">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">뜻 (Meaning)</label>
+                    <input type="text" id="editMeaningInput" placeholder="예: 사과" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">영어 예문 (Example En)</label>
+                    <input type="text" id="editExampleEnInput" placeholder="예: I eat an apple every morning." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">예문 해석 (Example Ko)</label>
+                    <input type="text" id="editExampleKoInput" placeholder="예: 나는 매일 아침 사과를 먹는다." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex gap-2 mt-5">
+                <button onclick="closeWordEditorModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-xl transition text-xs">
+                    취소
+                </button>
+                <button onclick="saveWordEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md">
+                    저장하기
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const HARDCODED_API_KEY = ""; 
-        // Index of word currently being edited (-1 means adding new)
         let editingWordIdx = -1;
 
         let wordsData = [];
@@ -694,7 +865,6 @@
         }
 
         function deleteWordFromList(idx) {
-            const wordToDelete = wordsData[idx].word;
             wordsData.splice(idx, 1);
 
             if (wordsData.length === 0) {
