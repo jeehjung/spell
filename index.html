@@ -631,14 +631,18 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                // Updated to Gemini 3 Flash / Flash-Lite API endpoint to prevent 404/Quota issues
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) throw new Error("API 요청 실패");
+                if (!response.ok) {
+                    const errorDetails = await response.text();
+                    throw new Error(`API 요청 실패 (${response.status}): ${errorDetails}`);
+                }
 
                 const result = await response.json();
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -659,7 +663,7 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('dictLoading').classList.add('hidden');
-                alert("단어 검색 중 오류가 발생했습니다. API Key를 올바르게 입력했는지 확인해 주세요.");
+                alert("단어 검색 중 오류가 발생했습니다. API Key를 올바르게 입력했는지 확인해 주세요.\n(" + err.message + ")");
             }
         }
 
@@ -742,7 +746,7 @@
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -755,7 +759,7 @@
                 if (response.status === 429) {
                     throw new Error("API 사용량 한도(Quota)를 초과했습니다. 잠시 후 다시 시도하거나 새 API Key를 발급받아 주세요.");
                 } else {
-                    throw new Error(`API 오류 (${response.status}): Key 또는 네트워크 상태를 다시 확인해 주세요.`);
+                    throw new Error(`API 오류 (${response.status}): ${errText}`);
                 }
             }
 
@@ -796,7 +800,6 @@
             renderWordList();
         }
 
-        // Fisher-Yates Array Shuffle Helper
         function shuffleArray(array) {
             const arr = [...array];
             for (let i = arr.length - 1; i > 0; i--) {
@@ -806,7 +809,6 @@
             return arr;
         }
 
-        // Spell Test Functions (Updated to Shuffle Words)
         function startSpellTest(onlyIncorrect = false) {
             if (wordsData.length === 0) return;
 
@@ -1120,7 +1122,7 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
