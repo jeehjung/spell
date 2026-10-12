@@ -47,7 +47,7 @@
                 <i class="fa-solid fa-cloud-arrow-up"></i>
             </div>
             <h2 class="text-lg sm:text-xl font-bold text-slate-800 mb-1">단어장 사진을 올려주세요</h2>
-            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 Gemini 2.5 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
+            <p class="text-xs sm:text-sm text-slate-400 mb-6">사진을 업로드하면 AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.</p>
 
             <div class="flex flex-col gap-3">
                 <label class="block w-full cursor-pointer bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg transition-all transform active:scale-95 text-center">
@@ -219,13 +219,13 @@
 
         <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
             <div class="text-center mb-6">
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">음성을 듣고 스펠링을 맞춰보세요</span>
-                <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
-                    <button type="button" onclick="playTestAudio('sentence')" class="inline-flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-3.5 py-2 rounded-full transition text-xs shadow-sm">
-                        <i class="fa-solid fa-quote-left text-xs"></i> 예문 듣기
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">듣고 알맞은 단어의 스펠링을 입력하세요</span>
+                <div class="flex justify-center gap-2">
+                    <button type="button" onclick="playTestAudio('sentence')" class="inline-flex items-center gap-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-3.5 py-2 rounded-full transition text-xs">
+                        <i class="fa-solid fa-volume-high"></i> 예문 다시 듣기
                     </button>
-                    <button type="button" onclick="playTestAudio('word')" class="inline-flex items-center gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold px-3.5 py-2 rounded-full transition text-xs shadow-sm">
-                        <i class="fa-solid fa-volume-high text-xs"></i> 단어 발음 듣기
+                    <button type="button" onclick="playTestAudio('word')" class="inline-flex items-center gap-1.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold px-3.5 py-2 rounded-full transition text-xs">
+                        <i class="fa-solid fa-volume-high"></i> 단어 발음 듣기
                     </button>
                 </div>
             </div>
@@ -238,12 +238,7 @@
             <div id="testResultBox" class="hidden rounded-2xl p-4 border mb-5">
                 <div id="testResultBadge" class="flex items-center gap-2 font-bold text-sm mb-1"></div>
                 <p id="testCorrectWord" class="text-xs font-semibold text-slate-700 mb-0.5"></p>
-                <div class="flex items-center justify-between mt-1">
-                    <p id="testFullSentence" class="text-xs text-slate-500 truncate mr-2"></p>
-                    <button type="button" onclick="playTestAudio('sentence')" class="shrink-0 bg-purple-100 hover:bg-purple-200 text-purple-700 text-[11px] font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1">
-                        <i class="fa-solid fa-quote-left text-[10px]"></i> 예문 다시듣기
-                    </button>
-                </div>
+                <p id="testFullSentence" class="text-xs text-slate-500"></p>
             </div>
 
             <div class="flex justify-center">
@@ -319,16 +314,6 @@
                 입력하신 Key는 <strong>브라우저 내부(localStorage)에 안전하게 저장</strong>됩니다.
             </p>
 
-            <!-- Usage Limit Notice Box -->
-            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4 text-xs text-amber-900 space-y-1">
-                <p class="font-bold flex items-center gap-1.5 text-amber-800">
-                    <i class="fa-solid fa-triangle-exclamation"></i> API 오류 또는 사용량 초과 안내
-                </p>
-                <p class="leading-relaxed text-amber-700">
-                    최근 <strong>Quota(사용량 한도 초과 - HTTP 429)</strong> 또는 결제/모델 권한 문제로 오류가 발생할 수 있습니다. 무료 Key의 경우 분당/일일 요청 제한이 있으니 잠시 후 시도하거나 새로운 프로젝트의 Key를 발급받아 보세요.
-                </p>
-            </div>
-
             <div class="mb-4">
                 <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key</label>
                 <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-mono">
@@ -365,7 +350,6 @@
                 <div>
                     <div class="flex justify-between items-center mb-1">
                         <label class="font-bold text-slate-700">단어 (Word)</label>
-                        <!-- AI Auto-fill Button -->
                         <button type="button" onclick="autoFillWordInfo()" id="aiFillBtn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1 text-[11px] border border-indigo-200">
                             <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> AI로 자동 채우기
                         </button>
@@ -403,7 +387,6 @@
 
     <script>
         const HARDCODED_API_KEY = ""; 
-        const GEMINI_MODEL = "gemini-2.5-flash";
         let editingWordIdx = -1;
 
         let wordsData = [];
@@ -417,14 +400,12 @@
         let isAnswerChecked = false;
         let incorrectWords = [];
 
-        // Current dictionary lookup cached word object
         let currentDictWord = null;
 
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
         });
 
-        // LocalStorage History Helpers
         function getSavedDecks() {
             try {
                 return JSON.parse(localStorage.getItem('saved_word_decks') || "[]");
@@ -580,7 +561,6 @@
             closeApiKeyModal();
         }
 
-        // Dictionary Modal Controls
         function openDictionaryModal() {
             document.getElementById('dictQueryInput').value = '';
             document.getElementById('dictLoading').classList.add('hidden');
@@ -631,17 +611,14 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) {
-                    const errorDetails = await response.text();
-                    throw new Error(`API 요청 실패 (${response.status}): ${errorDetails}`);
-                }
+                if (!response.ok) throw new Error("API 요청 실패");
 
                 const result = await response.json();
                 const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -662,7 +639,7 @@
             } catch (err) {
                 console.error(err);
                 document.getElementById('dictLoading').classList.add('hidden');
-                alert("단어 검색 중 오류가 발생했습니다. API Key를 올바르게 입력했는지 확인해 주세요.\n(" + err.message + ")");
+                alert("단어 검색 중 오류가 발생했습니다. API Key를 올바르게 입력했는지 확인해 주세요.");
             }
         }
 
@@ -695,7 +672,7 @@
                 return;
             }
 
-            showLoading("Gemini 2.5로 이미지 분석 및 단어 추출 중...");
+            showLoading("이미지에서 단어와 발음기호 추출 중...");
 
             const reader = new FileReader();
             reader.onload = async function(e) {
@@ -745,7 +722,7 @@
                 systemInstruction: { parts: [{ text: systemPrompt }] }
             };
 
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
             const response = await fetch(apiUrl, {
                 method: 'POST',
@@ -758,7 +735,7 @@
                 if (response.status === 429) {
                     throw new Error("API 사용량 한도(Quota)를 초과했습니다. 잠시 후 다시 시도하거나 새 API Key를 발급받아 주세요.");
                 } else {
-                    throw new Error(`API 오류 (${response.status}): ${errText}`);
+                    throw new Error(`API 오류 (${response.status}): Key 또는 네트워크 상태를 다시 확인해 주세요.`);
                 }
             }
 
@@ -829,6 +806,7 @@
 
         function renderTestCard() {
             isAnswerChecked = false;
+            const item = testWords[testIndex];
 
             document.getElementById('testProgressIndicator').innerText = `Test ${testIndex + 1} / ${testWords.length}`;
 
@@ -893,7 +871,7 @@
             }
 
             document.getElementById('testCorrectWord').innerText = `정답 단어: ${item.word} ${item.phonetic ? '(' + item.phonetic + ')' : ''}`;
-            document.getElementById('testFullSentence').innerText = `예문: ${item.exampleEn}`;
+            document.getElementById('testFullSentence').innerText = `전체 예문: ${item.exampleEn}`;
 
             document.getElementById('checkAnswerBtn').classList.add('hidden');
             document.getElementById('nextTestBtn').classList.remove('hidden');
@@ -1119,7 +1097,7 @@
             };
 
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
