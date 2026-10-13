@@ -1317,15 +1317,15 @@
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
 
-            // Word twice + example sentence once
-            const u1 = new SpeechSynthesisUtterance(item.word);
-            u1.lang = 'en-US'; u1.rate = 0.85;
+            // Example sentence first, then the target word twice.
+            const u1 = new SpeechSynthesisUtterance(item.exampleEn || '');
+            u1.lang = 'en-US'; u1.rate = 0.9;
 
             const u2 = new SpeechSynthesisUtterance(item.word);
             u2.lang = 'en-US'; u2.rate = 0.85;
 
-            const u3 = new SpeechSynthesisUtterance(item.exampleEn);
-            u3.lang = 'en-US'; u3.rate = 0.9;
+            const u3 = new SpeechSynthesisUtterance(item.word);
+            u3.lang = 'en-US'; u3.rate = 0.85;
 
             u1.onend = () => { window.speechSynthesis.speak(u2); };
             u2.onend = () => { window.speechSynthesis.speak(u3); };
