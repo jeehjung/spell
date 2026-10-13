@@ -293,6 +293,11 @@
     <!-- Saved History Modal -->
     <div id="historyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
         <div class="bg-white rounded-3xl p-4 sm:p-5 max-w-md w-full card-shadow border border-slate-100 relative my-auto max-h-[85vh] flex flex-col">
+            <div class="flex justify-end mb-2 shrink-0">
+                <button type="button" onclick="deleteNonFavoriteDecks()" class="bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2 rounded-xl transition inline-flex items-center gap-2">
+                    <i class="fa-solid fa-trash-can"></i> 즐겨찾기 외 단어장 모두 삭제
+                </button>
+            </div>
             <div class="flex items-center justify-between mb-3 shrink-0">
                 <div class="flex items-center gap-2">
                     <div class="w-8 h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-sm font-bold">
@@ -701,6 +706,30 @@
             decks = decks.filter(d => d.id !== id);
             saveDecksToStorage(decks);
             renderHistoryList();
+        }
+
+        function deleteNonFavoriteDecks() {
+            const decks = getSavedDecks();
+            const nonFavoriteCount = decks.filter(deck => !deck.isFavorite).length;
+            if (nonFavoriteCount === 0) {
+                alert("삭제할 즐겨찾기 외 단어장이 없습니다.");
+                return;
+            }
+
+            const confirmed = confirm(`즐겨찾기하지 않은 단어장 ${nonFavoriteCount}개를 모두 삭제할까요? 즐겨찾기 단어장은 유지됩니다.`);
+            if (!confirmed) return;
+
+            const keptDecks = decks.filter(deck => deck.isFavorite);
+            const currentDeckWasDeleted = currentDeckId !== null && !keptDecks.some(deck => deck.id === currentDeckId);
+            saveDecksToStorage(keptDecks);
+
+            if (currentDeckWasDeleted) {
+                currentDeckId = null;
+                currentDeckTitle = "";
+            }
+
+            renderHistoryList();
+            alert(`완료: 즐겨찾기 단어장 ${keptDecks.length}개를 유지하고, ${nonFavoriteCount}개를 삭제했습니다.`);
         }
 
         function backToUpload() {
