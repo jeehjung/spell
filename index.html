@@ -176,7 +176,7 @@
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
                 <div class="text-center mb-6">
                     <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full inline-block mb-3 border border-indigo-100">
-                        🔊 단어 2회 반복 후 예문 재생
+                        🔊 문장 먼저 읽고 단어 2회 반복
                     </span>
                     <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
                         <button type="button" onclick="playCurrentTestAudio()" class="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full transition text-xs shadow-md">
@@ -1317,20 +1317,34 @@
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
 
-            // Example sentence first, then the target word twice.
-            const u1 = new SpeechSynthesisUtterance(item.exampleEn || '');
-            u1.lang = 'en-US'; u1.rate = 0.9;
+            // Spell test audio order: example sentence first, then the target word twice.
+            const sentence = String(item.exampleEn || '').trim();
+            const word = String(item.word || '').trim();
 
-            const u2 = new SpeechSynthesisUtterance(item.word);
-            u2.lang = 'en-US'; u2.rate = 0.85;
+            const playWordTwice = () => {
+                if (!word) return;
+                const firstWord = new SpeechSynthesisUtterance(word);
+                firstWord.lang = 'en-US';
+                firstWord.rate = 0.85;
 
-            const u3 = new SpeechSynthesisUtterance(item.word);
-            u3.lang = 'en-US'; u3.rate = 0.85;
+                const secondWord = new SpeechSynthesisUtterance(word);
+                secondWord.lang = 'en-US';
+                secondWord.rate = 0.85;
 
-            u1.onend = () => { window.speechSynthesis.speak(u2); };
-            u2.onend = () => { window.speechSynthesis.speak(u3); };
+                firstWord.onend = () => window.speechSynthesis.speak(secondWord);
+                window.speechSynthesis.speak(firstWord);
+            };
 
-            window.speechSynthesis.speak(u1);
+            if (sentence) {
+                const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
+                sentenceUtterance.lang = 'en-US';
+                sentenceUtterance.rate = 0.9;
+                sentenceUtterance.onend = playWordTwice;
+                window.speechSynthesis.speak(sentenceUtterance);
+            } else {
+                // If no example sentence is available, play the target word twice.
+                playWordTwice();
+            }
         }
 
         function playSpecificAudio(word, exampleEn) {
