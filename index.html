@@ -767,10 +767,16 @@
             document.getElementById('dictionaryModal').classList.add('hidden');
         }
 
+        // Dictionary requests are deliberately spaced to stay within common free-tier RPM limits.
+        const DICTIONARY_REQUEST_INTERVAL_MS = 12000;
+        let lastDictionaryRequestAt = 0;
+        let dictionaryRequestInFlight = false;
+
         async function lookupDictionaryWord() {
             const query = document.getElementById('dictQueryInput').value.trim();
-            if (!query) return;
+            if (!query || dictionaryRequestInFlight) return;
 
+            // Cached results never consume API quota and can be opened immediately.
             const cachedWord = getCachedWordInfo(query);
             if (cachedWord) {
                 showDictionaryWord(cachedWord, query);
@@ -783,19 +789,35 @@
                 return;
             }
 
+            const elapsed = Date.now() - lastDictionaryRequestAt;
+            const waitMs = DICTIONARY_REQUEST_INTERVAL_MS - elapsed;
+            if (waitMs > 0) {
+                const waitSeconds = Math.ceil(waitMs / 1000);
+                alert(`무료 API의 호출 제한을 피하기 위해 사전 검색은 약 ${waitSeconds}초 후 다시 할 수 있습니다. 이미 검색한 단어는 즉시 열립니다.`);
+                return;
+            }
+
+            dictionaryRequestInFlight = true;
+            const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
+            if (searchButton) {
+                searchButton.disabled = true;
+                searchButton.classList.add('opacity-50');
+            }
             document.getElementById('dictLoading').classList.remove('hidden');
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
 
-            const systemPrompt = "You are a professional English dictionary and phonetic expert. Provide information for the requested word in valid JSON format only, with keys: word, phonetic (IPA format like [wɜːrd]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example). Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
-            const userQuery = `Provide dictionary information for the word: "${query}" in JSON format.`;
-
+            const systemPrompt = "Return only valid JSON with keys word, phonetic (IPA), meaning (Korean), exampleEn (short English sentence), exampleKo (Korean translation). No markdown.";
+            const userQuery = `Dictionary entry for "${query}". Keep the answer concise.`;
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { responseMimeType: "application/json", maxOutputTokens: 220 }
             };
 
             try {
+                // Record each attempted request, including failures, to avoid rapid retry loops.
+                lastDictionaryRequestAt = Date.now();
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -812,30 +834,29 @@
                     } else {
                         alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
                     }
-                    throw new Error(`API 요청 실패 (${response.status})`);
+                    return;
                 }
 
                 const result = await response.json();
-                let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                    // Robust JSON extraction using regex for both free and paid keys
-                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const jsonMatch = text.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        currentDictWord = JSON.parse(jsonMatch[0]);
-                    } else {
-                        currentDictWord = JSON.parse(text);
-                    }
-
-                    saveCachedWordInfo(query, currentDictWord);
-                    showDictionaryWord(currentDictWord, query);
-                } else {
+                let responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!responseText) {
                     alert("결과를 찾을 수 없습니다.");
+                    return;
                 }
+                responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                currentDictWord = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+                saveCachedWordInfo(query, currentDictWord);
+                showDictionaryWord(currentDictWord, query);
             } catch (err) {
                 console.error(err);
-                alert("단어 정보를 해석하는 중 오류가 발생했습니다. 다시 시도해 주세요.");
+                alert("단어 정보를 해석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
             } finally {
+                dictionaryRequestInFlight = false;
+                if (searchButton) {
+                    searchButton.disabled = false;
+                    searchButton.classList.remove('opacity-50');
+                }
                 document.getElementById('dictLoading').classList.add('hidden');
             }
         }
