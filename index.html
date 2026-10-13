@@ -418,6 +418,7 @@
         let wordsData = [];
         let currentIndex = 0;
         let lastTestSubmitAt = 0;
+        let testEnterHeld = false;
         let currentDeckId = null;
         let currentDeckTitle = "";
 
@@ -1415,9 +1416,17 @@
         function handleTestInputKeydown(event) {
             if (event.key !== 'Enter') return;
             event.preventDefault();
-            if (event.repeat) return;
+
+            // Ignore key-repeat and any further Enter keydowns until the key is released.
+            if (event.repeat || testEnterHeld) return;
+            testEnterHeld = true;
             submitTestAnswer();
         }
+
+        // Reset the hold guard only when Enter is actually released, even if focus changes.
+        document.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') testEnterHeld = false;
+        });
 
         function submitTestAnswer() {
             // Ignore duplicate Enter events from mobile keyboards/IME during a short transition window.
