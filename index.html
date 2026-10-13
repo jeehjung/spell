@@ -767,8 +767,8 @@
             document.getElementById('dictionaryModal').classList.add('hidden');
         }
 
-        // Dictionary requests are deliberately spaced to stay within common free-tier RPM limits.
-        const DICTIONARY_REQUEST_INTERVAL_MS = 12000;
+        // Keep only a short debounce between uncached searches; cached searches remain instant.
+        const DICTIONARY_REQUEST_INTERVAL_MS = 1500;
         let lastDictionaryRequestAt = 0;
         let dictionaryRequestInFlight = false;
 
@@ -792,8 +792,15 @@
             const elapsed = Date.now() - lastDictionaryRequestAt;
             const waitMs = DICTIONARY_REQUEST_INTERVAL_MS - elapsed;
             if (waitMs > 0) {
-                const waitSeconds = Math.ceil(waitMs / 1000);
-                alert(`무료 API의 호출 제한을 피하기 위해 사전 검색은 약 ${waitSeconds}초 후 다시 할 수 있습니다. 이미 검색한 단어는 즉시 열립니다.`);
+                // Avoid a disruptive alert; briefly wait, then run the latest entered query.
+                dictionaryRequestInFlight = true;
+                const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
+                if (searchButton) searchButton.disabled = true;
+                setTimeout(() => {
+                    dictionaryRequestInFlight = false;
+                    if (searchButton) searchButton.disabled = false;
+                    lookupDictionaryWord();
+                }, waitMs);
                 return;
             }
 
@@ -807,12 +814,10 @@
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
 
-            const systemPrompt = "Return only valid JSON with keys word, phonetic (IPA), meaning (Korean), exampleEn (short English sentence), exampleKo (Korean translation). No markdown.";
-            const userQuery = `Dictionary entry for "${query}". Keep the answer concise.`;
+            const userQuery = `Give a concise English dictionary entry for "${query}". Return JSON only: {"word":"...","phonetic":"IPA","meaning":"Korean meaning","exampleEn":"short simple English sentence","exampleKo":"Korean translation"}.`;
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                generationConfig: { responseMimeType: "application/json", maxOutputTokens: 220 }
+                generationConfig: { responseMimeType: "application/json", maxOutputTokens: 150, temperature: 0.2 }
             };
 
             try {
