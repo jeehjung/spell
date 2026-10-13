@@ -404,14 +404,14 @@
     <!-- App Info Footer -->
     <footer class="w-full max-w-xl text-center py-5 mt-6 border-t border-indigo-100 text-[11px] text-slate-500">
         <p id="storageUsageLabel" class="mb-1">브라우저 저장 데이터 확인 중...</p>
-        <p>사용 중인 Gemini 모델: <span id="geminiModelLabel" class="font-semibold text-indigo-600">gemini-3.8-flash</span></p>
+        <p>사용 중인 Gemini 모델: <span id="geminiModelLabel" class="font-semibold text-indigo-600">gemini-3.5-flash-lite</span></p>
         <p class="mt-1 text-[10px] text-slate-400">저장 용량은 단어장, 캐시 등 브라우저에 저장된 데이터의 추정치입니다.</p>
     </footer>
 
     <!-- Script Logic -->
     <script>
         const HARDCODED_API_KEY = ""; 
-        const GEMINI_MODEL = "gemini-3.8-flash";
+        const GEMINI_MODEL = "gemini-3.5-flash-lite";
         const OVERQUOTA_MSG = "API 사용량이 초과되었습니다. 오후 5시 이후에 다시 시도해 주세요. 저장된 단어장은 제한 없이 사용할 수 있습니다.";
         const UNAVAILABLE_MSG = "한꺼번에 API 호출이 많아 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.";
 
