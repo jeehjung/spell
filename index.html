@@ -664,8 +664,8 @@
                             <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 shrink-0 self-start ${starColorClass}" title="즐겨찾기">
                                 <i class="fa-solid fa-star"></i>
                             </button>
-                            <div class="flex-1 min-w-0">
-                                <h4 class="font-bold text-sm text-slate-800 truncate">${deck.title}</h4>
+                            <div class="flex-1 min-w-0 overflow-hidden">
+                                <h4 class="block w-full font-bold text-sm text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${deck.title}</h4>
                             </div>
                             <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0 self-start">${deck.count}개</span>
                         </div>
