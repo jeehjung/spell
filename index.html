@@ -661,11 +661,13 @@
                 item.innerHTML = `
                     <div class="cursor-pointer flex-1 min-w-0 mr-2" onclick="loadDeckFromHistory(${deck.id})">
                         <div class="flex items-start gap-1.5">
-                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 shrink-0 ${starColorClass}" title="즐겨찾기">
+                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 shrink-0 self-start ${starColorClass}" title="즐겨찾기">
                                 <i class="fa-solid fa-star"></i>
                             </button>
-                            <h4 class="font-bold text-sm text-slate-800 whitespace-normal break-words flex-1 min-w-0">${deck.title}</h4>
-                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
+                            <div class="flex-1 min-w-0">
+                                <h4 class="font-bold text-sm text-slate-800 whitespace-normal break-words">${deck.title}</h4>
+                            </div>
+                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0 self-start">${deck.count}개</span>
                         </div>
                         <p class="text-[11px] text-slate-500 mt-1 truncate font-medium"><span class="text-slate-400">포함 단어:</span> ${sampleWords}</p>
                         <p class="text-[10px] text-slate-400 mt-0.5">${dateTimeDisplay}</p>
