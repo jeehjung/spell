@@ -770,16 +770,17 @@
         const STUDY_NAME_STORAGE_KEY = 'spell_study_user_name';
 
         function getStudyName() {
-            return (localStorage.getItem(STUDY_NAME_STORAGE_KEY) || 'Iun').trim() || 'Iun';
+            return (localStorage.getItem(STUDY_NAME_STORAGE_KEY) || '').trim();
         }
 
         function updateStudyNameUI() {
             const name = getStudyName();
+            const displayTitle = name ? name + "'s Word Study" : "who's word study";
             const title = document.getElementById('studyTitleName');
             const buttonText = document.getElementById('studyNameBtnText');
-            if (title) title.textContent = name + "'s Word Study";
-            if (buttonText) buttonText.textContent = localStorage.getItem(STUDY_NAME_STORAGE_KEY) ? name + ' (이름 변경)' : '이름 설정';
-            document.title = name + "'s Word Study";
+            if (title) title.textContent = displayTitle;
+            if (buttonText) buttonText.textContent = name ? '이름 입력됨' : '이름 입력 필요';
+            document.title = displayTitle;
         }
 
         function openNameModal() {
@@ -798,12 +799,11 @@
         function saveStudyName() {
             const input = document.getElementById('studyNameInput');
             const name = String(input ? input.value : '').trim();
-            if (!name) {
-                alert('이름을 입력해 주세요.');
-                if (input) input.focus();
-                return;
+            if (name) {
+                localStorage.setItem(STUDY_NAME_STORAGE_KEY, name);
+            } else {
+                localStorage.removeItem(STUDY_NAME_STORAGE_KEY);
             }
-            localStorage.setItem(STUDY_NAME_STORAGE_KEY, name);
             updateStudyNameUI();
             closeNameModal();
         }
