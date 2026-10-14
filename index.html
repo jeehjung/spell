@@ -199,7 +199,7 @@
                 </div>
 
                 <div class="mb-6">
-                    <label class="block text-xs font-bold text-slate-700 mb-2 text-center">스펠링 입력</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-2 text-center">스펠링 입력 <span id="testQuestionNumber" class="text-purple-600">(문제 1)</span></label>
                     <input type="text" id="testSpellingInput" placeholder="단어를 입력하세요" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="done" data-lpignore="true" data-1p-ignore="true" onkeydown="handleTestInputKeydown(event)" class="w-full text-center text-xl font-bold px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-purple-500 font-mono tracking-wider">
                 </div>
 
@@ -1599,6 +1599,7 @@
             if (testWords.length === 0 || testIndex >= testWords.length) return;
             const item = testWords[testIndex];
             document.getElementById('testProgressIndicator').innerText = `Test ${testIndex + 1} / ${testWords.length}`;
+            document.getElementById('testQuestionNumber').innerText = `(문제 ${testIndex + 1})`;
             document.getElementById('testSpellingInput').value = '';
 
             if (!('speechSynthesis' in window)) return;
