@@ -50,11 +50,18 @@ public class MainActivity extends Activity {
             .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
             .build();
         textToSpeech = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
+            if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
                 int languageStatus = textToSpeech.setLanguage(Locale.US);
+                // Some devices have no English voice installed. Fall back to the device language
+                // so TTS still becomes usable instead of silently queueing speech forever.
+                if (languageStatus == TextToSpeech.LANG_MISSING_DATA
+                        || languageStatus == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    languageStatus = textToSpeech.setLanguage(Locale.getDefault());
+                }
                 ttsReady = languageStatus != TextToSpeech.LANG_MISSING_DATA
                         && languageStatus != TextToSpeech.LANG_NOT_SUPPORTED;
                 if (ttsReady) {
+                    textToSpeech.setSpeechRate(0.9f);
                     while (!pendingSpeech.isEmpty()) speakNow(pendingSpeech.poll());
                 }
             }
@@ -89,7 +96,9 @@ public class MainActivity extends Activity {
 
     private void speakNow(String text) {
         if (textToSpeech == null || !ttsReady || text == null || text.trim().isEmpty()) return;
-        textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, null, "word-study-" + System.nanoTime());
+        Bundle params = new Bundle();
+        params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
+        textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, params, "word-study-" + System.nanoTime());
     }
 
     private final class ExternalBrowserBridge {
