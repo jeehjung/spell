@@ -275,12 +275,16 @@
             </div>
 
             <div id="dictHistoryPanel" class="hidden shrink-0 mb-3 border border-slate-200 rounded-2xl bg-white p-3">
-                <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-extrabold text-slate-700">최근 사전 검색</span>
-                    <div class="flex gap-2">
+                <div class="flex items-center justify-between mb-2 gap-2">
+                    <span id="dictHistoryTitle" class="text-xs font-extrabold text-slate-700">최근 사전 검색</span>
+                    <div class="flex gap-2 shrink-0">
                         <button type="button" onclick="clearDictionaryHistory()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700">기록 삭제</button>
                         <button type="button" onclick="toggleDictionaryHistory(false)" class="text-[10px] font-bold text-slate-500">닫기</button>
                     </div>
+                </div>
+                <div class="flex gap-1.5 mb-2">
+                    <button id="dictRecentTab" type="button" onclick="setDictionaryHistoryView('recent')" class="flex-1 rounded-lg bg-indigo-600 text-white text-xs font-bold py-2">최근 검색</button>
+                    <button id="dictFavoritesTab" type="button" onclick="setDictionaryHistoryView('favorites')" class="flex-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-2">★ 즐겨찾기</button>
                 </div>
                 <div id="dictHistoryList" class="max-h-40 overflow-y-auto space-y-1"></div>
             </div>
@@ -1116,6 +1120,8 @@
 
         const DICTIONARY_HISTORY_KEY = 'spell_dictionary_search_history_v1';
         const DICTIONARY_HISTORY_LIMIT = 100;
+        const DICTIONARY_FAVORITES_KEY = 'spell_dictionary_favorites_v1';
+        let dictionaryHistoryView = 'recent';
 
         function getDictionaryHistory() {
             try {
@@ -1124,6 +1130,43 @@
             } catch (e) {
                 return [];
             }
+        }
+
+        function getDictionaryFavorites() {
+            try {
+                const value = JSON.parse(localStorage.getItem(DICTIONARY_FAVORITES_KEY) || '[]');
+                return Array.isArray(value) ? value : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveDictionaryFavorites(favorites) {
+            try {
+                localStorage.setItem(DICTIONARY_FAVORITES_KEY, JSON.stringify(favorites));
+            } catch (e) {
+                console.warn('사전 즐겨찾기를 저장하지 못했습니다.', e);
+            }
+        }
+
+        function toggleDictionaryFavorite(id) {
+            const entry = getDictionaryHistory().find(item => item.id === id)
+                || getDictionaryFavorites().find(item => item.id === id);
+            if (!entry) return;
+            let favorites = getDictionaryFavorites();
+            const existingIndex = favorites.findIndex(item => item.id === id);
+            if (existingIndex >= 0) {
+                favorites.splice(existingIndex, 1);
+            } else {
+                favorites.unshift({ ...entry, data: { ...entry.data } });
+            }
+            saveDictionaryFavorites(favorites);
+            renderDictionaryHistory();
+        }
+
+        function setDictionaryHistoryView(view) {
+            dictionaryHistoryView = view === 'favorites' ? 'favorites' : 'recent';
+            renderDictionaryHistory();
         }
 
         function saveDictionaryHistory(query, data) {
@@ -1160,21 +1203,33 @@
             const countEl = document.getElementById('dictHistoryCount');
             if (!listEl || !countEl) return;
             const history = getDictionaryHistory();
+            const favorites = getDictionaryFavorites();
             countEl.textContent = String(history.length);
+            const titleEl = document.getElementById('dictHistoryTitle');
+            const recentTab = document.getElementById('dictRecentTab');
+            const favoritesTab = document.getElementById('dictFavoritesTab');
+            if (titleEl) titleEl.textContent = dictionaryHistoryView === 'favorites' ? '즐겨찾기한 단어' : '최근 사전 검색';
+            if (recentTab) recentTab.className = dictionaryHistoryView === 'recent' ? 'flex-1 rounded-lg bg-indigo-600 text-white text-xs font-bold py-2' : 'flex-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-2';
+            if (favoritesTab) favoritesTab.className = dictionaryHistoryView === 'favorites' ? 'flex-1 rounded-lg bg-indigo-600 text-white text-xs font-bold py-2' : 'flex-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-2';
             listEl.replaceChildren();
+            const entries = dictionaryHistoryView === 'favorites' ? favorites : history;
 
-            if (history.length === 0) {
+            if (entries.length === 0) {
                 const empty = document.createElement('p');
                 empty.className = 'text-xs text-slate-400 text-center py-4';
-                empty.textContent = '검색 기록이 없습니다. 단어를 검색하면 자동으로 저장됩니다.';
+                empty.textContent = dictionaryHistoryView === 'favorites'
+                    ? '즐겨찾기한 단어가 없습니다. 검색 기록에서 별표를 눌러 추가하세요.'
+                    : '검색 기록이 없습니다. 단어를 검색하면 자동으로 저장됩니다.';
                 listEl.appendChild(empty);
                 return;
             }
 
-            history.forEach(entry => {
+            entries.forEach(entry => {
+                const row = document.createElement('div');
+                row.className = 'flex items-start gap-1 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 p-1';
                 const button = document.createElement('button');
                 button.type = 'button';
-                button.className = 'w-full text-left p-2 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100';
+                button.className = 'flex-1 min-w-0 text-left p-1';
                 button.addEventListener('click', () => loadDictionaryHistoryEntry(entry.id));
                 const word = document.createElement('span');
                 word.className = 'block text-xs font-bold text-slate-800';
@@ -1186,7 +1241,17 @@
                 date.className = 'block text-[10px] text-slate-400 mt-0.5';
                 date.textContent = entry.searchedAt || '';
                 button.append(word, meaning, date);
-                listEl.appendChild(button);
+
+                const star = document.createElement('button');
+                star.type = 'button';
+                const isFavorite = favorites.some(item => item.id === entry.id);
+                star.className = 'shrink-0 p-2 rounded-lg hover:bg-amber-50 ' + (isFavorite ? 'text-amber-500' : 'text-slate-300');
+                star.title = isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가';
+                star.setAttribute('aria-label', star.title);
+                star.innerHTML = '<i class="fa-solid fa-star"></i>';
+                star.addEventListener('click', () => toggleDictionaryFavorite(entry.id));
+                row.append(button, star);
+                listEl.appendChild(row);
             });
         }
 
@@ -1199,7 +1264,8 @@
         }
 
         function loadDictionaryHistoryEntry(id) {
-            const entry = getDictionaryHistory().find(item => item.id === id);
+            const entry = getDictionaryHistory().find(item => item.id === id)
+                || getDictionaryFavorites().find(item => item.id === id);
             if (!entry || !entry.data) return;
             document.getElementById('dictQueryInput').value = entry.query || entry.data.word || '';
             toggleDictionaryHistory(false);
@@ -1207,8 +1273,13 @@
         }
 
         function clearDictionaryHistory() {
-            if (!confirm('저장된 사전 검색 기록을 모두 삭제할까요?')) return;
-            localStorage.removeItem(DICTIONARY_HISTORY_KEY);
+            if (dictionaryHistoryView === 'favorites') {
+                if (!confirm('즐겨찾기를 모두 삭제할까요?')) return;
+                localStorage.removeItem(DICTIONARY_FAVORITES_KEY);
+            } else {
+                if (!confirm('저장된 사전 검색 기록을 모두 삭제할까요?')) return;
+                localStorage.removeItem(DICTIONARY_HISTORY_KEY);
+            }
             renderDictionaryHistory();
         }
 
