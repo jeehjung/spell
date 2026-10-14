@@ -549,7 +549,58 @@
             if (isNoun) loadDictionaryImage(data.word || fallbackWord);
         }
 
-        function loadDictionaryImage(searchTerm) {
+        async function loadDictionaryImage(searchTerm) {
+            const section = document.getElementById('dictImageSection');
+            const img = document.getElementById('dictResImage');
+            const status = document.getElementById('dictImageStatus');
+            const attribution = document.getElementById('dictImageAttribution');
+            const apiKey = getStoredApiKey();
+
+            section.classList.remove('hidden');
+            img.classList.add('hidden');
+            img.removeAttribute('src');
+            attribution.innerText = '';
+            status.innerText = 'Gemini가 그림을 그리고 있어요...';
+            status.classList.remove('hidden');
+
+            if (apiKey) {
+                try {
+                    const prompt = `Create one simple, cute, clear cartoon illustration for an English vocabulary learning app. Subject: "${searchTerm}". Show only the main object, centered, with a plain soft pastel background, friendly educational flashcard style, bold clean outlines, minimal details, no words, no letters, no labels, no watermark. Square image.`;
+                    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + encodeURIComponent(apiKey), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+                        })
+                    });
+                    if (!response.ok) throw new Error('Gemini image generation failed: ' + response.status);
+                    const result = await response.json();
+                    const parts = result.candidates?.[0]?.content?.parts || [];
+                    const imagePart = parts.find(part => part.inlineData?.data && String(part.inlineData.mimeType || '').startsWith('image/'));
+                    if (!imagePart) throw new Error('Gemini did not return an image');
+                    img.onload = () => {
+                        img.classList.remove('hidden');
+                        status.classList.add('hidden');
+                    };
+                    img.onerror = () => {
+                        img.classList.add('hidden');
+                        status.innerText = '그림을 표시하지 못했습니다.';
+                        status.classList.remove('hidden');
+                    };
+                    img.alt = `${searchTerm} 만화 그림`;
+                    img.src = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+                    attribution.innerText = 'Gemini가 생성한 만화 일러스트';
+                    return;
+                } catch (error) {
+                    console.warn('Gemini 이미지 생성 실패, 간단한 기본 그림으로 대체합니다:', error);
+                }
+            }
+            status.innerText = '기본 그림을 표시합니다...';
+            loadDictionaryImageFallback(searchTerm);
+        }
+
+        function loadDictionaryImageFallback(searchTerm) {
             const section = document.getElementById('dictImageSection');
             const img = document.getElementById('dictResImage');
             const status = document.getElementById('dictImageStatus');
