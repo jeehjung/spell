@@ -472,7 +472,7 @@
         let userAnswers = [];
         let incorrectWords = [];
 
-        // Current dictionary lookup cached word object
+        // Current dictionary lookup result (kept in memory only; never persisted)
         let currentDictWord = null;
 
         // Preserve the uploaded image in IndexedDB so a canceled/reloaded page can retry recognition.
@@ -481,7 +481,7 @@
         const PENDING_IMAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
         let imageRecognitionActive = false;
 
-        // Reuse word details across dictionary lookup and AI autofill to reduce API calls.
+        // Cache is used only by AI autofill; dictionary search results are never cached.
         const WORD_INFO_CACHE_KEY = 'spell_word_info_cache_v1';
         const WORD_INFO_CACHE_LIMIT = 300;
 
