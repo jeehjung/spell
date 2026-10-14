@@ -1422,7 +1422,12 @@
 
             document.getElementById('prevBtn').disabled = currentIndex === 0;
             document.getElementById('nextBtn').disabled = currentIndex === wordsData.length - 1;
-            
+
+            // Keep the word count correct before the accordion is opened.
+            const totalWordCountEl = document.getElementById('totalWordCount');
+            if (totalWordCountEl) totalWordCountEl.textContent = String(wordsData.length);
+            renderWordList();
+
             speakCurrentWord();
         }
 
@@ -1705,6 +1710,8 @@
 
             saveDeckToHistory(currentDeckTitle, wordsData, currentDeckId);
 
+            // Refresh the list immediately so edits are visible even when the accordion is open.
+            renderWordList();
             closeWordEditorModal();
             showCardView();
         }
