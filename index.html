@@ -581,7 +581,7 @@
                 const params = new URLSearchParams({
                     action: 'query',
                     generator: 'search',
-                    gsrsearch: searchTerm,
+                    gsrsearch: `filetype:bitmap ${searchTerm}`,
                     gsrnamespace: '6',
                     gsrlimit: '3',
                     prop: 'imageinfo',
@@ -609,18 +609,26 @@
                     return;
                 }
 
+                const imageUrl = imageInfo.thumburl || imageInfo.url;
                 img.onload = () => {
                     img.classList.remove('hidden');
                     status.classList.add('hidden');
                 };
                 img.onerror = () => {
                     img.classList.add('hidden');
-                    status.innerText = '이미지를 불러올 수 없습니다.';
+                    status.innerText = '이미지를 불러올 수 없습니다. 다른 이미지를 검색해 주세요.';
                     status.classList.remove('hidden');
                 };
                 img.alt = searchTerm + ' 이미지';
-                img.src = imageInfo.thumburl || imageInfo.url;
+                // Show the image element before assigning the URL, then handle both normal
+                // load events and images that complete immediately in WebView/browser caches.
+                img.classList.remove('hidden');
+                img.src = imageUrl;
                 attribution.innerText = '이미지 출처: Wikimedia Commons · ' + String(match.title || '').replace(/^File:/, '');
+                if (img.complete && img.naturalWidth > 0) {
+                    img.classList.remove('hidden');
+                    status.classList.add('hidden');
+                }
             } catch (error) {
                 console.warn('Wikimedia 이미지 검색 실패:', error);
                 status.innerText = error.name === 'AbortError'
