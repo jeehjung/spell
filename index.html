@@ -1455,42 +1455,59 @@
         function toggleWordList() {
             const container = document.getElementById('wordListContainer');
             const icon = document.getElementById('listToggleIcon');
-            container.classList.toggle('hidden');
-            icon.classList.toggle('fa-chevron-down');
-            icon.classList.toggle('fa-chevron-up');
+            const isOpening = container.classList.contains('hidden');
+            if (isOpening) {
+                renderWordList();
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+            if (icon) {
+                icon.classList.toggle('fa-chevron-down', !isOpening);
+                icon.classList.toggle('fa-chevron-up', isOpening);
+            }
         }
 
         function renderWordList() {
-            document.getElementById('totalWordCount').innerText = wordsData.length;
             const listEl = document.getElementById('wordListItems');
+            const countEl = document.getElementById('totalWordCount');
+            if (!listEl || !countEl) return;
+            const list = Array.isArray(wordsData) ? wordsData : [];
+            countEl.innerText = list.length;
             listEl.innerHTML = '';
 
-            if (wordsData.length === 0) {
-                listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">등록된 단어가 없습니다. 단어를 추가해 보세요.</p>`;
+            if (list.length === 0) {
+                listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">등록된 단어가 없습니다. 단어장을 다시 열거나 단어를 추가해 보세요.</p>`;
                 return;
             }
 
-            wordsData.forEach((item, idx) => {
+            list.forEach((item, idx) => {
+                const word = String(item?.word || item?.english || item?.term || '').trim();
+                const phonetic = String(item?.phonetic || '');
+                const meaning = String(item?.meaning || item?.definition || '');
                 const div = document.createElement('div');
                 div.className = `flex items-center justify-between p-2.5 rounded-xl transition ${idx === currentIndex ? 'bg-indigo-50 border border-indigo-200 font-bold text-indigo-700' : 'hover:bg-slate-50 text-slate-700 border border-transparent'}`;
                 div.innerHTML = `
                     <div class="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0 mr-2" onclick="selectWordFromList(${idx})">
                         <span class="text-xs text-slate-400 w-5 shrink-0">#${idx + 1}</span>
                         <div class="truncate">
-                            <span class="text-sm font-semibold">${item.word}</span>
-                            <span class="text-xs text-indigo-500 ml-1 font-mono">${item.phonetic || ''}</span>
-                            <span class="text-xs text-slate-500 ml-2 truncate block sm:inline">${item.meaning}</span>
+                            <span class="text-sm font-semibold word-list-word"></span>
+                            <span class="text-xs text-indigo-500 ml-1 font-mono word-list-phonetic"></span>
+                            <span class="text-xs text-slate-500 ml-2 truncate block sm:inline word-list-meaning"></span>
                         </div>
                     </div>
                     <div class="flex items-center gap-1 shrink-0">
-                        <button onclick="event.stopPropagation(); openWordEditorModal(${idx})" class="w-7 h-7 bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 rounded-lg flex items-center justify-center transition" title="수정">
+                        <button type="button" onclick="event.stopPropagation(); openWordEditorModal(${idx})" class="w-7 h-7 bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 rounded-lg flex items-center justify-center transition" title="수정">
                             <i class="fa-solid fa-pen text-[11px]"></i>
                         </button>
-                        <button onclick="event.stopPropagation(); deleteWordFromList(${idx})" class="w-7 h-7 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg flex items-center justify-center transition" title="삭제">
+                        <button type="button" onclick="event.stopPropagation(); deleteWordFromList(${idx})" class="w-7 h-7 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg flex items-center justify-center transition" title="삭제">
                             <i class="fa-solid fa-trash-can text-[11px]"></i>
                         </button>
                     </div>
                 `;
+                div.querySelector('.word-list-word').textContent = word || '(단어 없음)';
+                div.querySelector('.word-list-phonetic').textContent = phonetic;
+                div.querySelector('.word-list-meaning').textContent = meaning;
                 listEl.appendChild(div);
             });
         }
