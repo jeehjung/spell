@@ -538,7 +538,7 @@
             currentDictWord = data;
             const isKoreanQuery = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(fallbackWord);
             const meaningLabel = document.getElementById('dictResMeaningLabel');
-            if (meaningLabel) meaningLabel.innerText = isKoreanQuery ? '영어 (English)' : '의미 (Meaning)';
+            if (meaningLabel) meaningLabel.innerText = '의미 (Meaning)';
             document.getElementById('dictResWord').innerText = data.word || fallbackWord;
             document.getElementById('dictResPhonetic').innerText = data.phonetic || "[ - ]";
             document.getElementById('dictResMeaning').innerText = data.meaning || (isKoreanQuery ? (data.word || fallbackWord) : "뜻 없음");
