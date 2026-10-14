@@ -1100,12 +1100,9 @@
         }
 
         function speakDictWord() {
-            if (!currentDictWord || !('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(currentDictWord.word);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.9;
-            window.speechSynthesis.speak(utterance);
+            if (!currentDictWord) return;
+            stopAppSpeech();
+            speakAppText(currentDictWord.word);
         }
 
         function addDictWordToStudyDeck() {
@@ -1242,7 +1239,7 @@
         }
 
         function showTestSummary() {
-            window.speechSynthesis.cancel();
+            stopAppSpeech();
             document.getElementById('testView').classList.add('hidden');
             document.getElementById('testSummaryView').classList.remove('hidden');
 
