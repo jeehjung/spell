@@ -180,7 +180,7 @@
         <!-- Spell Test View (Continuous Input) -->
         <div id="testView" class="hidden w-full max-w-xl flex flex-col gap-3 my-auto">
             <div class="flex items-center justify-between px-2">
-                <button type="button" onclick="exitSpellTest()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
+                <button type="button" onclick="if (window.AndroidBridge) { window.AndroidBridge.exitTest(); } else { exitSpellTest(); }" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
                     <i class="fa-solid fa-arrow-left"></i> Exit Test
                 </button>
                 <span id="testProgressIndicator" class="text-xs font-extrabold text-purple-600 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100">Test 1 / 10</span>
@@ -1298,25 +1298,49 @@
             }
         }
 
-        function exitSpellTest() {
-            // Android WebView에서 테스트 종료 시 렌더링/음성 오류와 무관하게 화면부터 전환한다.
+        function stopAppSpeech() {
             try {
+                if (window.AndroidBridge) window.AndroidBridge.stopSpeech();
                 if (window.speechSynthesis) window.speechSynthesis.cancel();
             } catch (speechError) {
-                console.warn('테스트 음성 종료 중 오류:', speechError);
+                console.warn('음성 종료 중 오류:', speechError);
             }
+        }
 
+        function speakAppText(text) {
+            const phrase = String(text || '').trim();
+            if (!phrase) return;
+            try {
+                if (window.AndroidBridge) {
+                    window.AndroidBridge.speakText(phrase);
+                    return;
+                }
+                if ('speechSynthesis' in window && typeof SpeechSynthesisUtterance !== 'undefined') {
+                    const utterance = new SpeechSynthesisUtterance(phrase);
+                    utterance.lang = 'en-US';
+                    utterance.rate = 0.9;
+                    window.speechSynthesis.speak(utterance);
+                }
+            } catch (speechError) {
+                console.error('단어 음성 재생 실패:', speechError);
+            }
+        }
+
+        function exitSpellTest() {
+            // 화면 전환을 음성 처리보다 먼저 실행해 테스트 종료가 항상 작동하게 한다.
             const testView = document.getElementById('testView');
             const summaryView = document.getElementById('testSummaryView');
             const uploadView = document.getElementById('uploadView');
             const loadingView = document.getElementById('loadingView');
             const cardView = document.getElementById('cardView');
 
-            if (testView) testView.classList.add('hidden');
-            if (summaryView) summaryView.classList.add('hidden');
-            if (uploadView) uploadView.classList.add('hidden');
-            if (loadingView) loadingView.classList.add('hidden');
-            if (cardView) cardView.classList.remove('hidden');
+            if (testView) { testView.classList.add('hidden'); testView.style.display = 'none'; }
+            if (summaryView) { summaryView.classList.add('hidden'); summaryView.style.display = 'none'; }
+            if (uploadView) { uploadView.classList.add('hidden'); uploadView.style.display = 'none'; }
+            if (loadingView) { loadingView.classList.add('hidden'); loadingView.style.display = 'none'; }
+            if (cardView) { cardView.classList.remove('hidden'); cardView.style.display = ''; }
+
+            stopAppSpeech();
 
             // 테스트 종료 후 단어장 학습 화면을 복원한다.
             if (wordsData.length > 0) {
@@ -1364,23 +1388,19 @@
         }
 
         function speakCurrentWord() {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
             const item = wordsData[currentIndex];
-            const utterance = new SpeechSynthesisUtterance(item.word);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.9;
-            window.speechSynthesis.speak(utterance);
+            if (item) {
+                stopAppSpeech();
+                speakAppText(item.word);
+            }
         }
 
         function speakExample() {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
             const item = wordsData[currentIndex];
-            const utterance = new SpeechSynthesisUtterance(item.exampleEn);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.9;
-            window.speechSynthesis.speak(utterance);
+            if (item) {
+                stopAppSpeech();
+                speakAppText(item.exampleEn);
+            }
         }
 
         function toggleWordList() {
@@ -1652,48 +1672,21 @@
             document.getElementById('testQuestionNumber').innerText = `(문제 ${testIndex + 1})`;
             document.getElementById('testSpellingInput').value = '';
 
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-
-            // Spell test audio order: example sentence first, then the target word twice.
+            stopAppSpeech();
+            // Android에서는 네이티브 TTS 큐에 문장과 단어를 순서대로 넣는다.
             const sentence = String(item.exampleEn || '').trim();
             const word = String(item.word || '').trim();
-
-            const playWordTwice = () => {
-                if (!word) return;
-                const firstWord = new SpeechSynthesisUtterance(word);
-                firstWord.lang = 'en-US';
-                firstWord.rate = 0.85;
-
-                const secondWord = new SpeechSynthesisUtterance(word);
-                secondWord.lang = 'en-US';
-                secondWord.rate = 0.85;
-
-                firstWord.onend = () => window.speechSynthesis.speak(secondWord);
-                window.speechSynthesis.speak(firstWord);
-            };
-
-            if (sentence) {
-                const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
-                sentenceUtterance.lang = 'en-US';
-                sentenceUtterance.rate = 0.9;
-                sentenceUtterance.onend = playWordTwice;
-                window.speechSynthesis.speak(sentenceUtterance);
-            } else {
-                // If no example sentence is available, play the target word twice.
-                playWordTwice();
+            if (sentence) speakAppText(sentence);
+            if (word) {
+                speakAppText(word);
+                speakAppText(word);
             }
         }
 
         function playSpecificAudio(word, exampleEn) {
-            if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
-            const u1 = new SpeechSynthesisUtterance(word);
-            u1.lang = 'en-US'; u1.rate = 0.85;
-            const u3 = new SpeechSynthesisUtterance(exampleEn);
-            u3.lang = 'en-US'; u3.rate = 0.9;
-            u1.onend = () => { window.speechSynthesis.speak(u3); };
-            window.speechSynthesis.speak(u1);
+            stopAppSpeech();
+            speakAppText(word);
+            speakAppText(exampleEn);
         }
 
         function handleTestInputKeydown(event) {
