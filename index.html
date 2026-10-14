@@ -657,27 +657,27 @@
                 const starColorClass = deck.isFavorite ? 'text-amber-400' : 'text-slate-300 hover:text-amber-300';
 
                 const item = document.createElement('div');
-                item.className = `bg-slate-50 border ${deck.isFavorite ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'} rounded-2xl p-3 flex items-center justify-between transition`;
+                item.className = `bg-slate-50 border ${deck.isFavorite ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'} rounded-2xl p-3 flex flex-col gap-2 transition`;
                 item.innerHTML = `
                     <div class="cursor-pointer flex-1 min-w-0 mr-2" onclick="loadDeckFromHistory(${deck.id})">
-                        <div class="flex items-center gap-1.5">
-                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 ${starColorClass}" title="즐겨찾기">
+                        <div class="flex items-start gap-1.5">
+                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 shrink-0 ${starColorClass}" title="즐겨찾기">
                                 <i class="fa-solid fa-star"></i>
                             </button>
-                            <h4 class="font-bold text-sm text-slate-800 truncate">${deck.title}</h4>
+                            <h4 class="font-bold text-sm text-slate-800 whitespace-normal break-words flex-1 min-w-0">${deck.title}</h4>
                             <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
                         </div>
                         <p class="text-[11px] text-slate-500 mt-1 truncate font-medium"><span class="text-slate-400">포함 단어:</span> ${sampleWords}</p>
                         <p class="text-[10px] text-slate-400 mt-0.5">${dateTimeDisplay}</p>
                     </div>
-                    <div class="flex items-center gap-1 shrink-0">
-                        <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
+                    <div class="flex items-center justify-end gap-1 shrink-0 pt-2 border-t border-slate-200/70">
+                        <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
                             <i class="fa-solid fa-pen text-xs"></i>
                         </button>
-                        <button onclick="loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-sm">
+                        <button onclick="loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm">
                             학습하기
                         </button>
-                        <button onclick="event.stopPropagation(); deleteDeckFromHistory(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition" title="삭제">
+                        <button onclick="event.stopPropagation(); deleteDeckFromHistory(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition" title="삭제">
                             <i class="fa-solid fa-trash-can text-xs"></i>
                         </button>
                     </div>
