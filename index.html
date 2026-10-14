@@ -433,8 +433,8 @@
     <script>
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
-        const OVERQUOTA_MSG = "API 사용량이 초과되었습니다. 오후 5시 이후에 다시 시도해 주세요. 저장된 단어장은 제한 없이 사용할 수 있습니다.";
-        const UNAVAILABLE_MSG = "한꺼번에 API 호출이 많아 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.";
+        const OVERQUOTA_MSG = "API Key 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.";
+        const UNAVAILABLE_MSG = "Google 서비스가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.";
 
         let editingWordIdx = -1;
 
@@ -1326,7 +1326,7 @@
                     } else {
                         alert(`AI 조회 실패: ${errorDetails}`);
                     }
-                    throw new Error("AI 조회 실패");
+                    throw new Error("API_ERROR_ALREADY_SHOWN");
                 }
 
                 const result = await response.json();
@@ -1341,7 +1341,9 @@
                 }
             } catch (err) {
                 console.error(err);
-                alert("자동 채우기 중 오류가 발생했습니다.");
+                if (err.message !== "API_ERROR_ALREADY_SHOWN") {
+                    alert("자동 채우기 중 오류가 발생했습니다.");
+                }
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = originalText;
