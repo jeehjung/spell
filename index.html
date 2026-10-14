@@ -16,7 +16,7 @@
         input, textarea, select { font-size: 1rem; }
         #cardExampleEn { font-size: 1.15rem; line-height: 1.65; }
         #cardExampleKo { font-size: 1rem; line-height: 1.6; }
-        #cardMeaning { font-size: 1.35rem; }
+        #cardMeaning { font-size: 1.15rem; line-height: 1.8; white-space: pre-line; }
         .card-shadow { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
         .pulse-btn { animation: pulse 2s infinite; }
         @keyframes pulse {
@@ -1150,8 +1150,8 @@
 
             const isKoreanQuery = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(query);
             const userQuery = isKoreanQuery
-                ? `Translate the Korean search term "${query}" into its most natural English word or phrase. Identify the part of speech. Return JSON only: {"word":"English translation","phonetic":"IPA pronunciation","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"English translation or short English definition","exampleEn":"short simple English sentence","exampleKo":"Korean translation of the example"}. Do not return a Korean meaning in the meaning field.`
-                : `Give a concise English dictionary entry for "${query}". Identify the part of speech. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"Korean meaning","exampleEn":"short simple English sentence","exampleKo":"Korean translation"}.`;
+                ? `Translate the Korean search term "${query}" into its most natural English word or phrase. Identify the part of speech. Return JSON only: {"word":"English translation","phonetic":"IPA pronunciation","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"numbered meanings, most common first, with part-of-speech labels","exampleEn":"short simple English sentence for the first meaning","exampleKo":"Korean translation of the example"}. Do not return a Korean meaning in the meaning field.`
+                : `Give a concise English dictionary entry for "${query}". Include the main common Korean meanings, not just one: put the most common meaning first, then other common meanings, each on a new numbered line and label its part of speech when useful. Avoid obscure/rare meanings. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"1. 대표 뜻 (품사)\\n2. 다른 주요 뜻 (품사)\\n3. 또 다른 주요 뜻 (품사)","exampleEn":"short simple English sentence using the first meaning","exampleKo":"Korean translation"}.`;
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
                 generationConfig: { responseMimeType: "application/json", maxOutputTokens: 150, temperature: 0.2 }
@@ -1267,8 +1267,8 @@
         }
 
         async function extractWordsFromImage(base64Data, mimeType, apiKey) {
-            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), 1 simple example sentence in English (exampleEn), and its Korean translation (exampleKo). Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
-            const userQuery = "Extract all English words from this image along with phonetic transcriptions, meanings, and examples in JSON format.";
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), all common Korean meanings (meaning) with the most common/representative meaning first and each additional meaning on a new numbered line, and 1 simple example sentence in English (exampleEn) with Korean translation (exampleKo). Preserve meanings explicitly written in the photographed vocabulary list; when it does not give enough detail, add only the most common learner-relevant meanings. Label parts of speech where useful. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
+            const userQuery = "Extract all English words from this image along with IPA, all common meanings numbered from most common to less common, and one example sentence with Korean translation in JSON format.";
 
             const payload = {
                 contents: [
@@ -1537,7 +1537,7 @@
                 phoneticEl.textContent = phonetic;
 
                 const meaningEl = document.createElement('span');
-                meaningEl.className = 'block text-sm text-slate-600 whitespace-normal break-words';
+                meaningEl.className = 'block text-sm text-slate-600 whitespace-pre-line break-words';
                 meaningEl.textContent = meaning;
 
                 details.append(wordEl, phoneticEl, meaningEl);
@@ -1634,8 +1634,8 @@
             btn.disabled = true;
             btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 분석 중...`;
 
-            const systemPrompt = "You are an expert English teacher. Provide accurate information for the given word in valid JSON format only with keys: word, phonetic (IPA format like [æpəl]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example). Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
-            const userQuery = `Provide details for the word "${word}" in JSON.`;
+            const systemPrompt = "You are an expert English teacher. Provide accurate information for the given word in valid JSON format only with keys: word, phonetic (IPA format like [æpəl]), meaning (a string containing all common Korean meanings, numbered on separate lines with the most common/representative meaning first and parts of speech where useful), exampleEn (simple example sentence using the first meaning), exampleKo (Korean translation of example). Include only common, useful meanings and do not invent obscure senses. Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
+            const userQuery = `Provide details for the word "${word}" including all common meanings, with the most common meaning first and each meaning on a separate numbered line.`;
 
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
