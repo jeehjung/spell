@@ -1299,8 +1299,35 @@
         }
 
         function exitSpellTest() {
-            window.speechSynthesis.cancel();
-            showCardView();
+            // Android WebView에서 테스트 종료 시 렌더링/음성 오류와 무관하게 화면부터 전환한다.
+            try {
+                if (window.speechSynthesis) window.speechSynthesis.cancel();
+            } catch (speechError) {
+                console.warn('테스트 음성 종료 중 오류:', speechError);
+            }
+
+            const testView = document.getElementById('testView');
+            const summaryView = document.getElementById('testSummaryView');
+            const uploadView = document.getElementById('uploadView');
+            const loadingView = document.getElementById('loadingView');
+            const cardView = document.getElementById('cardView');
+
+            if (testView) testView.classList.add('hidden');
+            if (summaryView) summaryView.classList.add('hidden');
+            if (uploadView) uploadView.classList.add('hidden');
+            if (loadingView) loadingView.classList.add('hidden');
+            if (cardView) cardView.classList.remove('hidden');
+
+            // 테스트 종료 후 단어장 학습 화면을 복원한다.
+            if (wordsData.length > 0) {
+                if (currentIndex < 0 || currentIndex >= wordsData.length) currentIndex = 0;
+                try {
+                    renderCard();
+                    renderWordList();
+                } catch (renderError) {
+                    console.error('테스트 종료 후 학습 화면 갱신 중 오류:', renderError);
+                }
+            }
         }
 
         function renderCard() {
