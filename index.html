@@ -1089,7 +1089,7 @@
             document.getElementById('dictionaryModal').classList.add('hidden');
         }
 
-        // Keep only a short debounce between uncached searches; cached searches remain instant.
+        // Dictionary searches always request fresh results and never read/write the word-info cache.
         const DICTIONARY_REQUEST_INTERVAL_MS = 1500;
         let lastDictionaryRequestAt = 0;
         let dictionaryRequestInFlight = false;
@@ -1097,13 +1097,6 @@
         async function lookupDictionaryWord() {
             const query = document.getElementById('dictQueryInput').value.trim();
             if (!query || dictionaryRequestInFlight) return;
-
-            // Cached results never consume API quota and can be opened immediately.
-            const cachedWord = getCachedWordInfo(query);
-            if (cachedWord) {
-                showDictionaryWord(cachedWord, query);
-                return;
-            }
 
             const apiKey = getStoredApiKey();
             if (!apiKey) {
@@ -1176,7 +1169,6 @@
                 responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
                 const jsonMatch = responseText.match(/\{[\s\S]*\}/);
                 currentDictWord = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
-                saveCachedWordInfo(query, currentDictWord);
                 showDictionaryWord(currentDictWord, query);
             } catch (err) {
                 console.error(err);
