@@ -1983,7 +1983,8 @@
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
 
-            // Spell test audio order: example sentence first, then the target word twice.
+            // Spell test audio order: question number, example sentence, then the target word twice.
+            const questionNumber = testIndex + 1;
             const sentence = String(item.exampleEn || '').trim();
             const word = String(item.word || '').trim();
 
@@ -2001,16 +2002,44 @@
                 window.speechSynthesis.speak(firstWord);
             };
 
-            if (sentence) {
-                const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
-                sentenceUtterance.lang = 'en-US';
-                sentenceUtterance.rate = 0.9;
-                sentenceUtterance.onend = playWordTwice;
-                window.speechSynthesis.speak(sentenceUtterance);
-            } else {
-                // If no example sentence is available, play the target word twice.
-                playWordTwice();
-            }
+            const numberUtterance = new SpeechSynthesisUtterance(
+                questionNumber === 1 ? 'Number one' :
+                questionNumber === 2 ? 'Number two' :
+                questionNumber === 3 ? 'Number three' :
+                questionNumber === 4 ? 'Number four' :
+                questionNumber === 5 ? 'Number five' :
+                questionNumber === 6 ? 'Number six' :
+                questionNumber === 7 ? 'Number seven' :
+                questionNumber === 8 ? 'Number eight' :
+                questionNumber === 9 ? 'Number nine' :
+                questionNumber === 10 ? 'Number ten' :
+                questionNumber === 11 ? 'Number eleven' :
+                questionNumber === 12 ? 'Number twelve' :
+                questionNumber === 13 ? 'Number thirteen' :
+                questionNumber === 14 ? 'Number fourteen' :
+                questionNumber === 15 ? 'Number fifteen' :
+                questionNumber === 16 ? 'Number sixteen' :
+                questionNumber === 17 ? 'Number seventeen' :
+                questionNumber === 18 ? 'Number eighteen' :
+                questionNumber === 19 ? 'Number nineteen' :
+                questionNumber === 20 ? 'Number twenty' :
+                `Number ${questionNumber}`
+            );
+            numberUtterance.lang = 'en-US';
+            numberUtterance.rate = 0.9;
+            numberUtterance.onend = () => {
+                if (sentence) {
+                    const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
+                    sentenceUtterance.lang = 'en-US';
+                    sentenceUtterance.rate = 0.9;
+                    sentenceUtterance.onend = playWordTwice;
+                    window.speechSynthesis.speak(sentenceUtterance);
+                } else {
+                    // If no example sentence is available, play the target word twice.
+                    playWordTwice();
+                }
+            };
+            window.speechSynthesis.speak(numberUtterance);
         }
 
         function playSpecificAudio(word, exampleEn) {
