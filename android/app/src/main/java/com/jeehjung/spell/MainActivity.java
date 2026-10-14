@@ -12,6 +12,9 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.speech.tts.TextToSpeech;
+import java.util.ArrayDeque;
+import java.util.Queue;
 import androidx.core.content.FileProvider;
 import androidx.webkit.WebViewAssetLoader;
 import java.io.File;
@@ -25,6 +28,9 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private Uri cameraPhotoUri;
+    private TextToSpeech textToSpeech;
+    private boolean ttsReady = false;
+    private final Queue<String> pendingSpeech = new ArrayDeque<>();
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -43,6 +49,16 @@ public class MainActivity extends Activity {
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
             .build();
+        textToSpeech = new TextToSpeech(this, status -> {
+            if (status == TextToSpeech.SUCCESS) {
+                int languageStatus = textToSpeech.setLanguage(Locale.US);
+                ttsReady = languageStatus != TextToSpeech.LANG_MISSING_DATA
+                        && languageStatus != TextToSpeech.LANG_NOT_SUPPORTED;
+                if (ttsReady) {
+                    while (!pendingSpeech.isEmpty()) speakNow(pendingSpeech.poll());
+                }
+            }
+        });
         webView.addJavascriptInterface(new ExternalBrowserBridge(), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient() {
             @Override public android.webkit.WebResourceResponse shouldInterceptRequest(
@@ -71,7 +87,40 @@ public class MainActivity extends Activity {
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
     }
 
+    private void speakNow(String text) {
+        if (textToSpeech == null || !ttsReady || text == null || text.trim().isEmpty()) return;
+        textToSpeech.speak(text, TextToSpeech.QUEUE_ADD, null, "word-study-" + System.nanoTime());
+    }
+
     private final class ExternalBrowserBridge {
+        @JavascriptInterface
+        public void speakText(String text) {
+            runOnUiThread(() -> {
+                if (text == null || text.trim().isEmpty()) return;
+                if (ttsReady) speakNow(text);
+                else pendingSpeech.add(text);
+            });
+        }
+
+        @JavascriptInterface
+        public void stopSpeech() {
+            runOnUiThread(() -> {
+                pendingSpeech.clear();
+                if (textToSpeech != null) textToSpeech.stop();
+            });
+        }
+
+        @JavascriptInterface
+        public void exitTest() {
+            runOnUiThread(() -> {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                        "if (typeof window.exitSpellTest === 'function') window.exitSpellTest();",
+                        null
+                    );
+                }
+            });
+        }
         @JavascriptInterface
         public void openExternalUrl(String url) {
             runOnUiThread(() -> {
@@ -141,6 +190,7 @@ public class MainActivity extends Activity {
 
     @Override protected void onDestroy() {
         finishFileSelection(null);
+        if (textToSpeech != null) { textToSpeech.stop(); textToSpeech.shutdown(); textToSpeech = null; }
         if (webView != null) { webView.destroy(); webView = null; }
         super.onDestroy();
     }
