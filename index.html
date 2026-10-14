@@ -191,7 +191,7 @@
                     <span class="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-2 rounded-xl inline-block mb-2 border border-indigo-200">
                         🔊 문장 먼저 읽고 단어 2회 반복
                     </span>
-                    <p class="text-xs text-slate-500 mb-3">문제 순서는 매번 섞입니다. 종이에 받아 적을 때 화면의 문제 번호를 함께 적으면 오프라인에서도 번호별로 채점할 수 있어요.</p>
+                    <p class="text-xs text-slate-500 mb-3">종이에 받아 적을 때 화면의 문제 번호를 함께 적으면 오프라인에서도 번호별로 채점할 수 있어요.</p>
                     <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
                         <button type="button" onclick="playCurrentTestAudio()" class="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full transition text-xs shadow-md">
                             <i class="fa-solid fa-volume-high text-xs"></i> 음성 다시 듣기
@@ -1480,43 +1480,81 @@
             const listEl = document.getElementById('wordListItems');
             const countEl = document.getElementById('totalWordCount');
             if (!listEl || !countEl) return;
+
             const list = Array.isArray(wordsData) ? wordsData : [];
-            countEl.innerText = list.length;
-            listEl.innerHTML = '';
+            countEl.textContent = String(list.length);
+            listEl.replaceChildren();
 
             if (list.length === 0) {
-                listEl.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">등록된 단어가 없습니다. 단어장을 다시 열거나 단어를 추가해 보세요.</p>`;
+                const empty = document.createElement('p');
+                empty.className = 'text-sm text-slate-500 text-center py-4';
+                empty.textContent = '등록된 단어가 없습니다. 단어장을 다시 열거나 단어를 추가해 보세요.';
+                listEl.appendChild(empty);
                 return;
             }
 
             list.forEach((item, idx) => {
-                const word = String(item?.word || item?.english || item?.term || '').trim();
-                const phonetic = String(item?.phonetic || '');
-                const meaning = String(item?.meaning || item?.definition || '');
-                const div = document.createElement('div');
-                div.className = `flex items-center justify-between p-2.5 rounded-xl transition ${idx === currentIndex ? 'bg-indigo-50 border border-indigo-200 font-bold text-indigo-700' : 'hover:bg-slate-50 text-slate-700 border border-transparent'}`;
-                div.innerHTML = `
-                    <div class="flex items-center space-x-2.5 cursor-pointer flex-1 min-w-0 mr-2" onclick="selectWordFromList(${idx})">
-                        <span class="text-xs text-slate-400 w-5 shrink-0">#${idx + 1}</span>
-                        <div class="truncate">
-                            <span class="text-sm font-semibold word-list-word"></span>
-                            <span class="text-xs text-indigo-500 ml-1 font-mono word-list-phonetic"></span>
-                            <span class="text-xs text-slate-500 ml-2 truncate block sm:inline word-list-meaning"></span>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-1 shrink-0">
-                        <button type="button" onclick="event.stopPropagation(); openWordEditorModal(${idx})" class="w-7 h-7 bg-slate-100 hover:bg-indigo-100 text-slate-500 hover:text-indigo-600 rounded-lg flex items-center justify-center transition" title="수정">
-                            <i class="fa-solid fa-pen text-[11px]"></i>
-                        </button>
-                        <button type="button" onclick="event.stopPropagation(); deleteWordFromList(${idx})" class="w-7 h-7 bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-lg flex items-center justify-center transition" title="삭제">
-                            <i class="fa-solid fa-trash-can text-[11px]"></i>
-                        </button>
-                    </div>
-                `;
-                div.querySelector('.word-list-word').textContent = word || '(단어 없음)';
-                div.querySelector('.word-list-phonetic').textContent = phonetic;
-                div.querySelector('.word-list-meaning').textContent = meaning;
-                listEl.appendChild(div);
+                // Support both the current schema and common alternate field names
+                // so a saved deck with older word objects still displays correctly.
+                const data = item && typeof item === 'object' ? item : { word: item };
+                const word = String(data.word ?? data.english ?? data.term ?? data.vocabulary ?? data.target ?? data.단어 ?? '').trim();
+                const phonetic = String(data.phonetic ?? data.ipa ?? data.pronunciation ?? '').trim();
+                const meaning = String(data.meaning ?? data.definition ?? data.korean ?? data.translation ?? data.뜻 ?? '').trim();
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-100 hover:bg-slate-50';
+                if (idx === currentIndex) {
+                    row.classList.add('bg-indigo-50', 'border-indigo-200');
+                }
+
+                const select = document.createElement('button');
+                select.type = 'button';
+                select.className = 'flex-1 min-w-0 text-left';
+                select.addEventListener('click', () => selectWordFromList(idx));
+
+                const number = document.createElement('span');
+                number.className = 'inline-block text-xs text-slate-400 w-7 align-top';
+                number.textContent = '#' + (idx + 1);
+
+                const details = document.createElement('span');
+                details.className = 'inline-block align-top min-w-0';
+                details.style.maxWidth = 'calc(100% - 2rem)';
+
+                const wordEl = document.createElement('span');
+                wordEl.className = 'block text-base font-semibold text-slate-800 break-words';
+                wordEl.textContent = word || '(단어 필드 확인 필요)';
+
+                const phoneticEl = document.createElement('span');
+                phoneticEl.className = 'block text-sm text-indigo-600 font-mono break-words';
+                phoneticEl.textContent = phonetic;
+
+                const meaningEl = document.createElement('span');
+                meaningEl.className = 'block text-sm text-slate-600 whitespace-normal break-words';
+                meaningEl.textContent = meaning;
+
+                details.append(wordEl, phoneticEl, meaningEl);
+                select.append(number, details);
+
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-1 shrink-0';
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'w-9 h-9 bg-slate-100 hover:bg-indigo-100 text-slate-600 rounded-lg flex items-center justify-center';
+                editBtn.title = '수정';
+                editBtn.innerHTML = '<i class="fa-solid fa-pen text-xs"></i>';
+                editBtn.addEventListener('click', () => openWordEditorModal(idx));
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'w-9 h-9 bg-slate-100 hover:bg-rose-100 text-slate-600 rounded-lg flex items-center justify-center';
+                deleteBtn.title = '삭제';
+                deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                deleteBtn.addEventListener('click', () => deleteWordFromList(idx));
+
+                actions.append(editBtn, deleteBtn);
+                row.append(select, actions);
+                listEl.appendChild(row);
             });
         }
 
