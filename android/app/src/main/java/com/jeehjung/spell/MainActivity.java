@@ -6,6 +6,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.webkit.ValueCallback;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -42,6 +43,7 @@ public class MainActivity extends Activity {
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
             .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
             .build();
+        webView.addJavascriptInterface(new ExternalBrowserBridge(), "AndroidBridge");
         webView.setWebViewClient(new WebViewClient() {
             @Override public android.webkit.WebResourceResponse shouldInterceptRequest(
                     WebView view, WebResourceRequest request) {
@@ -67,6 +69,27 @@ public class MainActivity extends Activity {
             }
         });
         webView.loadUrl("https://appassets.androidplatform.net/assets/index.html");
+    }
+
+    private final class ExternalBrowserBridge {
+        @JavascriptInterface
+        public void openExternalUrl(String url) {
+            runOnUiThread(() -> {
+                try {
+                    Uri uri = Uri.parse(url);
+                    // Only allow the intended Google AI Studio API-key page.
+                    if (!"https".equalsIgnoreCase(uri.getScheme())
+                            || !"aistudio.google.com".equalsIgnoreCase(uri.getHost())
+                            || !"/app/apikey".equals(uri.getPath())) {
+                        return;
+                    }
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    startActivity(intent);
+                } catch (Exception ignored) {
+                    // The device may not have a browser available to handle this URL.
+                }
+            });
+        }
     }
 
     private boolean launchCamera() {
