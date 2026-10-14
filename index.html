@@ -282,10 +282,7 @@
                         <button type="button" onclick="toggleDictionaryHistory(false)" class="text-[10px] font-bold text-slate-500">닫기</button>
                     </div>
                 </div>
-                <div class="flex gap-1.5 mb-2">
-                    <button id="dictRecentTab" type="button" onclick="setDictionaryHistoryView('recent')" class="flex-1 rounded-lg bg-indigo-600 text-white text-xs font-bold py-2">최근 검색</button>
-                    <button id="dictFavoritesTab" type="button" onclick="setDictionaryHistoryView('favorites')" class="flex-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-2">★ 즐겨찾기</button>
-                </div>
+
                 <div id="dictHistoryList" class="max-h-40 overflow-y-auto space-y-1"></div>
             </div>
 
@@ -1121,7 +1118,6 @@
         const DICTIONARY_HISTORY_KEY = 'spell_dictionary_search_history_v1';
         const DICTIONARY_HISTORY_LIMIT = 100;
         const DICTIONARY_FAVORITES_KEY = 'spell_dictionary_favorites_v1';
-        let dictionaryHistoryView = 'recent';
 
         function getDictionaryHistory() {
             try {
@@ -1164,11 +1160,6 @@
             renderDictionaryHistory();
         }
 
-        function setDictionaryHistoryView(view) {
-            dictionaryHistoryView = view === 'favorites' ? 'favorites' : 'recent';
-            renderDictionaryHistory();
-        }
-
         function saveDictionaryHistory(query, data) {
             const cleanQuery = String(query || '').trim();
             if (!cleanQuery || !data || typeof data !== 'object') return;
@@ -1206,20 +1197,20 @@
             const favorites = getDictionaryFavorites();
             countEl.textContent = String(history.length);
             const titleEl = document.getElementById('dictHistoryTitle');
-            const recentTab = document.getElementById('dictRecentTab');
-            const favoritesTab = document.getElementById('dictFavoritesTab');
-            if (titleEl) titleEl.textContent = dictionaryHistoryView === 'favorites' ? '즐겨찾기한 단어' : '최근 사전 검색';
-            if (recentTab) recentTab.className = dictionaryHistoryView === 'recent' ? 'flex-1 rounded-lg bg-indigo-600 text-white text-xs font-bold py-2' : 'flex-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-2';
-            if (favoritesTab) favoritesTab.className = dictionaryHistoryView === 'favorites' ? 'flex-1 rounded-lg bg-indigo-600 text-white text-xs font-bold py-2' : 'flex-1 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold py-2';
+            if (titleEl) titleEl.textContent = '최근 사전 검색 · 즐겨찾기는 맨 위에 표시';
             listEl.replaceChildren();
-            const entries = dictionaryHistoryView === 'favorites' ? favorites : history;
+
+            // Show saved favorites first, then the remaining recent searches.
+            const favoriteIds = new Set(favorites.map(item => item.id));
+            const entries = [
+                ...favorites,
+                ...history.filter(item => !favoriteIds.has(item.id))
+            ];
 
             if (entries.length === 0) {
                 const empty = document.createElement('p');
                 empty.className = 'text-xs text-slate-400 text-center py-4';
-                empty.textContent = dictionaryHistoryView === 'favorites'
-                    ? '즐겨찾기한 단어가 없습니다. 검색 기록에서 별표를 눌러 추가하세요.'
-                    : '검색 기록이 없습니다. 단어를 검색하면 자동으로 저장됩니다.';
+                empty.textContent = '검색 기록이 없습니다. 단어를 검색하면 자동으로 저장됩니다.';
                 listEl.appendChild(empty);
                 return;
             }
@@ -1273,13 +1264,9 @@
         }
 
         function clearDictionaryHistory() {
-            if (dictionaryHistoryView === 'favorites') {
-                if (!confirm('즐겨찾기를 모두 삭제할까요?')) return;
-                localStorage.removeItem(DICTIONARY_FAVORITES_KEY);
-            } else {
-                if (!confirm('저장된 사전 검색 기록을 모두 삭제할까요?')) return;
-                localStorage.removeItem(DICTIONARY_HISTORY_KEY);
-            }
+            if (!confirm('검색 기록을 삭제할까요? 즐겨찾기한 단어는 삭제되지 않습니다.')) return;
+            // Favorites are stored separately and intentionally preserved.
+            localStorage.removeItem(DICTIONARY_HISTORY_KEY);
             renderDictionaryHistory();
         }
 
