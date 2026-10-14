@@ -31,7 +31,7 @@
     <!-- Header Section -->
     <header class="w-full max-w-xl text-center py-4 relative z-10">
         <button type="button" onclick="window.location.reload()" title="페이지 새로고침" aria-label="페이지 새로고침" class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2 transition cursor-pointer">
-            <i class="fa-solid fa-graduation-cap mr-2"></i> Iun's Word Study
+            <i class="fa-solid fa-graduation-cap mr-2"></i> <span id="studyTitleName">Iun's Word Study</span>
         </button>
         <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
 
@@ -40,6 +40,10 @@
             <button type="button" onclick="openApiKeyModal()" class="cursor-pointer text-xs bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-600 border border-slate-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-key text-amber-500"></i>
                 <span id="apiKeyBtnText">API Key 설정</span>
+            </button>
+            <button type="button" onclick="openNameModal()" class="cursor-pointer text-xs bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-600 border border-slate-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-user-pen text-indigo-500"></i>
+                <span id="studyNameBtnText">이름 설정</span>
             </button>
             <button type="button" onclick="openDictionaryModal()" class="cursor-pointer text-xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-book-open text-indigo-600"></i> 사전 검색
@@ -320,6 +324,25 @@
         </div>
     </div>
 
+    <!-- Study Name Setup Modal -->
+    <div id="nameModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
+            <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
+                <i class="fa-solid fa-user-pen"></i>
+            </div>
+            <h3 class="text-lg font-extrabold text-slate-900 mb-1">이름 설정</h3>
+            <p class="text-xs text-slate-500 mb-4 leading-relaxed">입력한 이름이 상단에 ‘이름's Word Study’ 형식으로 표시됩니다.</p>
+            <div class="mb-5">
+                <label for="studyNameInput" class="block text-xs font-bold text-slate-700 mb-1">표시할 이름</label>
+                <input type="text" id="studyNameInput" maxlength="40" placeholder="이름을 입력하세요" autocomplete="off" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeNameModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">취소</button>
+                <button type="button" onclick="saveStudyName()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">저장하기</button>
+            </div>
+        </div>
+    </div>
+
     <!-- API Key Setup Modal -->
     <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
@@ -497,6 +520,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
             updateStorageUsageDisplay();
+            updateStudyNameUI();
             const modelLabel = document.getElementById('geminiModelLabel');
             if (modelLabel) modelLabel.textContent = GEMINI_MODEL;
         });
@@ -741,6 +765,47 @@
             document.getElementById('imageInput').value = '';
             currentDeckId = null;
             currentDeckTitle = "";
+        }
+
+        const STUDY_NAME_STORAGE_KEY = 'spell_study_user_name';
+
+        function getStudyName() {
+            return (localStorage.getItem(STUDY_NAME_STORAGE_KEY) || 'Iun').trim() || 'Iun';
+        }
+
+        function updateStudyNameUI() {
+            const name = getStudyName();
+            const title = document.getElementById('studyTitleName');
+            const buttonText = document.getElementById('studyNameBtnText');
+            if (title) title.textContent = name + "'s Word Study";
+            if (buttonText) buttonText.textContent = localStorage.getItem(STUDY_NAME_STORAGE_KEY) ? name + ' (이름 변경)' : '이름 설정';
+            document.title = name + "'s Word Study";
+        }
+
+        function openNameModal() {
+            const input = document.getElementById('studyNameInput');
+            if (input) {
+                input.value = localStorage.getItem(STUDY_NAME_STORAGE_KEY) || '';
+                document.getElementById('nameModal').classList.remove('hidden');
+                input.focus();
+            }
+        }
+
+        function closeNameModal() {
+            document.getElementById('nameModal').classList.add('hidden');
+        }
+
+        function saveStudyName() {
+            const input = document.getElementById('studyNameInput');
+            const name = String(input ? input.value : '').trim();
+            if (!name) {
+                alert('이름을 입력해 주세요.');
+                if (input) input.focus();
+                return;
+            }
+            localStorage.setItem(STUDY_NAME_STORAGE_KEY, name);
+            updateStudyNameUI();
+            closeNameModal();
         }
 
         function getStoredApiKey() {
