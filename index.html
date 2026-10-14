@@ -582,14 +582,22 @@
                     generator: 'search',
                     gsrsearch: searchTerm,
                     gsrnamespace: '6',
-                    gsrlimit: '8',
+                    gsrlimit: '3',
                     prop: 'imageinfo',
                     iiprop: 'url',
-                    iiurlwidth: '640',
+                    iiurlwidth: '400',
                     format: 'json',
                     origin: '*'
                 });
-                const response = await fetch('https://commons.wikimedia.org/w/api.php?' + params.toString());
+                // Keep the request small and fail quickly instead of leaving the UI spinning.
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 7000);
+                let response;
+                try {
+                    response = await fetch('https://commons.wikimedia.org/w/api.php?' + params.toString(), { signal: controller.signal });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
                 if (!response.ok) throw new Error('Wikimedia image search failed');
                 const result = await response.json();
                 const pages = Object.values(result.query?.pages || {});
@@ -614,7 +622,9 @@
                 attribution.innerText = '이미지 출처: Wikimedia Commons · ' + String(match.title || '').replace(/^File:/, '');
             } catch (error) {
                 console.warn('Wikimedia 이미지 검색 실패:', error);
-                status.innerText = '이미지 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+                status.innerText = error.name === 'AbortError'
+                    ? '검색 시간이 길어져 중단했습니다. 다시 눌러 주세요.'
+                    : '이미지 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.';
             } finally {
                 button.disabled = false;
                 button.classList.remove('opacity-50');
