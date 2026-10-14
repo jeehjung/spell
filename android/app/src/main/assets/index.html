@@ -361,7 +361,7 @@
             <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
             <p class="text-xs text-slate-500 mb-4 leading-relaxed">
                 Gemini AI 단어 분석 및 자동 채우기 기능을 사용하려면 API 키가 필요합니다.<br>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 font-bold underline inline-flex items-center gap-1 mt-1">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" onclick="if (window.AndroidBridge) { window.AndroidBridge.openExternalUrl(this.href); return false; }" class="text-indigo-600 hover:text-indigo-800 font-bold underline inline-flex items-center gap-1 mt-1">
                     <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> 여기서 무료 API Key 발급받기
                 </a>
             </p>
@@ -433,7 +433,7 @@
 
     <!-- App Info Footer -->
     <footer class="w-full max-w-xl text-center py-5 mt-6 border-t border-indigo-100 text-[11px] text-slate-500">
-        <p id="storageUsageLabel" class="mb-1">브라우저 저장 데이터 확인 중...</p>
+        <p id="storageUsageLabel" class="mb-1">저장 데이터 확인 중...</p>
         <p>사용 중인 Gemini 모델: <span id="geminiModelLabel" class="font-semibold text-indigo-600">gemini-3.5-flash-lite</span></p>
         <p class="mt-1 text-[10px] text-slate-400">저장 용량은 단어장, 캐시 등 브라우저에 저장된 데이터의 추정치입니다.</p>
     </footer>
@@ -699,9 +699,9 @@
                 } else {
                     formatted = (totalBytes / (1024 * 1024)).toFixed(2) + ' MB';
                 }
-                label.textContent = '브라우저 저장 데이터 사용량 약 ' + formatted + ' (단어장 + 캐시 포함)';
+                label.textContent = '저장 데이터 사용량 약 ' + formatted + ' (단어장 + 캐시 포함)';
             } catch (e) {
-                label.textContent = '브라우저 저장 데이터 사용량을 확인할 수 없습니다.';
+                label.textContent = '저장 데이터 사용량을 확인할 수 없습니다.';
             }
         }
 
@@ -1223,13 +1223,14 @@
                         const autoTitle = `단어장 ${decks.length + 1}`;
                         saveDeckToHistory(autoTitle, wordsData);
 
-                        // Clear the temporary image only after the extracted words are saved.
+                        // Keep the saved deck and explicitly transition to study mode after recognition.
+                        // Cleanup failures must never send a successfully recognized deck back to upload.
                         try {
                             await clearPendingImageJob();
                         } catch (cleanupError) {
                             console.warn('임시 이미지 정리에 실패했습니다.', cleanupError);
                         }
-                        showCardView();
+                        enterRecognizedWordsStudyMode();
                         return;
                     }
                 }
@@ -1556,6 +1557,28 @@
             document.getElementById('testSummaryView').classList.add('hidden');
             document.getElementById('loadingText').innerText = msg;
             document.getElementById('loadingView').classList.remove('hidden');
+        }
+
+        function enterRecognizedWordsStudyMode() {
+            if (!Array.isArray(wordsData) || wordsData.length === 0) {
+                backToUpload();
+                return;
+            }
+            currentIndex = 0;
+            // Set the visible screen before rendering audio/cards so a rendering issue
+            // cannot leave the loading screen active after successful image recognition.
+            document.getElementById('uploadView').classList.add('hidden');
+            document.getElementById('loadingView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('cardView').classList.remove('hidden');
+            try {
+                renderCard();
+                renderWordList();
+            } catch (renderError) {
+                console.error('인식된 단어장 학습 화면 표시 중 오류:', renderError);
+                // The study screen remains visible even if a secondary UI component fails.
+            }
         }
 
         function showCardView() {
