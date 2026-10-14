@@ -183,14 +183,15 @@
                 <button type="button" onclick="exitSpellTest()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
                     <i class="fa-solid fa-arrow-left"></i> Exit Test
                 </button>
-                <span id="testProgressIndicator" class="text-xs font-extrabold text-purple-600 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100">Test 1 / 10</span>
+                <span id="testProgressIndicator" class="text-sm font-extrabold text-purple-700 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">문제 1 / 10</span>
             </div>
 
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
                 <div class="text-center mb-6">
-                    <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full inline-block mb-3 border border-indigo-100">
+                    <span class="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-2 rounded-xl inline-block mb-2 border border-indigo-200">
                         🔊 문장 먼저 읽고 단어 2회 반복
                     </span>
+                    <p class="text-xs text-slate-500 mb-3">문제 순서는 매번 섞입니다. 종이에 받아 적을 때 화면의 문제 번호를 함께 적으면 오프라인에서도 번호별로 채점할 수 있어요.</p>
                     <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
                         <button type="button" onclick="playCurrentTestAudio()" class="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full transition text-xs shadow-md">
                             <i class="fa-solid fa-volume-high text-xs"></i> 음성 다시 듣기
@@ -199,7 +200,7 @@
                 </div>
 
                 <div class="mb-6">
-                    <label class="block text-xs font-bold text-slate-700 mb-2 text-center">스펠링 입력 <span id="testQuestionNumber" class="text-purple-600">(문제 1)</span></label>
+                    <label class="block text-base font-extrabold text-slate-800 mb-3 text-center"><span id="testQuestionNumber" class="inline-flex items-center justify-center bg-purple-100 text-purple-800 border border-purple-200 rounded-lg px-3 py-1 mr-1">(문제 1)</span> 스펠링 입력</label>
                     <input type="text" id="testSpellingInput" placeholder="단어를 입력하세요" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="done" data-lpignore="true" data-1p-ignore="true" onkeydown="handleTestInputKeydown(event)" class="w-full text-center text-xl font-bold px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-purple-500 font-mono tracking-wider">
                 </div>
 
@@ -1694,7 +1695,7 @@
                 return;
             }
 
-            // Shuffle the test order with Fisher-Yates, without changing the source word lists.
+            // Randomize every test (including retries) so the child cannot rely on memorized word-list order.
             for (let i = testWords.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [testWords[i], testWords[j]] = [testWords[j], testWords[i]];
@@ -1716,7 +1717,7 @@
         function playCurrentTestAudio() {
             if (testWords.length === 0 || testIndex >= testWords.length) return;
             const item = testWords[testIndex];
-            document.getElementById('testProgressIndicator').innerText = `Test ${testIndex + 1} / ${testWords.length}`;
+            document.getElementById('testProgressIndicator').innerText = `문제 ${testIndex + 1} / ${testWords.length}`;
             document.getElementById('testQuestionNumber').innerText = `(문제 ${testIndex + 1})`;
             document.getElementById('testSpellingInput').value = '';
 
