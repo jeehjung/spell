@@ -1199,14 +1199,21 @@
             if (titleEl) titleEl.textContent = '최근 사전 검색';
             listEl.replaceChildren();
 
-            // Show saved favorites first, then the remaining recent searches.
-            const favoriteIds = new Set(favorites.map(item => item.id));
-            const entries = [
-                ...favorites,
-                ...history.filter(item => !favoriteIds.has(item.id))
-            ];
-            // Count all visible entries, including favorites, without double-counting
-            // an entry that exists in both storage lists.
+            // Show favorites first and display each word only once, even if it
+            // appears multiple times in favorites or search history.
+            const entries = [];
+            const seenWords = new Set();
+            const addUniqueWords = (items) => {
+                items.forEach(item => {
+                    const word = String(item?.data?.word || item?.query || '').trim();
+                    const normalizedWord = word.toLocaleLowerCase();
+                    if (!normalizedWord || seenWords.has(normalizedWord)) return;
+                    seenWords.add(normalizedWord);
+                    entries.push(item);
+                });
+            };
+            addUniqueWords(favorites);
+            addUniqueWords(history);
             countEl.textContent = String(entries.length);
 
             if (entries.length === 0) {
