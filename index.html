@@ -1418,7 +1418,10 @@
             document.getElementById('cardExampleKo').innerText = item.exampleKo;
 
             document.getElementById('progressIndicator').innerText = `${currentIndex + 1} / ${wordsData.length}`;
-            document.getElementById('wordIndexBadge').innerText = `Word #${currentIndex + 1}`;
+            // This optional badge is not present in the current HTML; guard it so
+            // a missing element cannot stop the word count/list from refreshing.
+            const wordIndexBadge = document.getElementById('wordIndexBadge');
+            if (wordIndexBadge) wordIndexBadge.innerText = `Word #${currentIndex + 1}`;
 
             document.getElementById('prevBtn').disabled = currentIndex === 0;
             document.getElementById('nextBtn').disabled = currentIndex === wordsData.length - 1;
