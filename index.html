@@ -288,12 +288,16 @@
                     <p id="dictResMeaning" class="text-xs font-semibold text-slate-800 mt-0.5">뜻 설명</p>
                 </div>
                 <div id="dictImageSection" class="hidden">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">이미지 (Image)</span>
-                    <div class="mt-1 rounded-xl overflow-hidden bg-white border border-slate-200 flex justify-center">
-                        <img id="dictResImage" alt="검색한 명사 이미지" class="hidden max-h-56 max-w-full object-contain" loading="lazy">
-                        <p id="dictImageStatus" class="text-xs text-slate-400 p-4">이미지 검색 중...</p>
+                    <button id="dictImageSearchBtn" type="button" onclick="searchDictionaryImage()" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition">
+                        <i class="fa-solid fa-image"></i> 이미지 검색
+                    </button>
+                    <div id="dictImageResult" class="hidden mt-2">
+                        <div class="rounded-xl overflow-hidden bg-white border border-slate-200 flex justify-center">
+                            <img id="dictResImage" alt="검색한 명사 이미지" class="hidden max-h-56 max-w-full object-contain" loading="lazy">
+                            <p id="dictImageStatus" class="text-xs text-slate-400 p-4"></p>
+                        </div>
+                        <p id="dictImageAttribution" class="text-[10px] text-slate-400 mt-1"></p>
                     </div>
-                    <p id="dictImageAttribution" class="text-[10px] text-slate-400 mt-1"></p>
                 </div>
                 <div>
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">예문 (Example)</span>
@@ -546,91 +550,75 @@
             const imageSection = document.getElementById('dictImageSection');
             const isNoun = /noun|명사/i.test(String(data.partOfSpeech || ''));
             imageSection.classList.toggle('hidden', !isNoun);
-            if (isNoun) loadDictionaryImage(data.word || fallbackWord);
+            document.getElementById('dictImageResult').classList.add('hidden');
+            document.getElementById('dictResImage').classList.add('hidden');
+            document.getElementById('dictResImage').removeAttribute('src');
+            document.getElementById('dictImageAttribution').innerText = '';
+            document.getElementById('dictImageSearchBtn').disabled = false;
         }
 
-        async function loadDictionaryImage(searchTerm) {
-            const section = document.getElementById('dictImageSection');
+        async function searchDictionaryImage() {
+            const searchTerm = String(currentDictWord?.word || '').trim();
+            if (!searchTerm) return;
+
+            const section = document.getElementById('dictImageResult');
             const img = document.getElementById('dictResImage');
             const status = document.getElementById('dictImageStatus');
             const attribution = document.getElementById('dictImageAttribution');
-            const apiKey = getStoredApiKey();
+            const button = document.getElementById('dictImageSearchBtn');
 
             section.classList.remove('hidden');
             img.classList.add('hidden');
             img.removeAttribute('src');
             attribution.innerText = '';
-            status.innerText = 'Gemini가 그림을 그리고 있어요...';
+            status.innerText = 'Wikimedia에서 이미지를 검색 중...';
             status.classList.remove('hidden');
+            button.disabled = true;
+            button.classList.add('opacity-50');
 
-            if (apiKey) {
-                try {
-                    const prompt = `Create one simple, cute, clear cartoon illustration for an English vocabulary learning app. Subject: "${searchTerm}". Show only the main object, centered, with a plain soft pastel background, friendly educational flashcard style, bold clean outlines, minimal details, no words, no letters, no labels, no watermark. Square image.`;
-                    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=' + encodeURIComponent(apiKey), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
-                        })
-                    });
-                    if (!response.ok) throw new Error('Gemini image generation failed: ' + response.status);
-                    const result = await response.json();
-                    const parts = result.candidates?.[0]?.content?.parts || [];
-                    const imagePart = parts.find(part => part.inlineData?.data && String(part.inlineData.mimeType || '').startsWith('image/'));
-                    if (!imagePart) throw new Error('Gemini did not return an image');
-                    img.onload = () => {
-                        img.classList.remove('hidden');
-                        status.classList.add('hidden');
-                    };
-                    img.onerror = () => {
-                        img.classList.add('hidden');
-                        status.innerText = '그림을 표시하지 못했습니다.';
-                        status.classList.remove('hidden');
-                    };
-                    img.alt = `${searchTerm} 만화 그림`;
-                    img.src = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
-                    attribution.innerText = 'Gemini가 생성한 만화 일러스트';
+            try {
+                const params = new URLSearchParams({
+                    action: 'query',
+                    generator: 'search',
+                    gsrsearch: searchTerm,
+                    gsrnamespace: '6',
+                    gsrlimit: '8',
+                    prop: 'imageinfo',
+                    iiprop: 'url',
+                    iiurlwidth: '640',
+                    format: 'json',
+                    origin: '*'
+                });
+                const response = await fetch('https://commons.wikimedia.org/w/api.php?' + params.toString());
+                if (!response.ok) throw new Error('Wikimedia image search failed');
+                const result = await response.json();
+                const pages = Object.values(result.query?.pages || {});
+                const match = pages.find(page => page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url);
+                const imageInfo = match?.imageinfo?.[0];
+                if (!imageInfo) {
+                    status.innerText = '이미지를 찾을 수 없습니다.';
                     return;
-                } catch (error) {
-                    console.warn('Gemini 이미지 생성 실패, 간단한 기본 그림으로 대체합니다:', error);
                 }
-            }
-            status.innerText = '기본 그림을 표시합니다...';
-            loadDictionaryImageFallback(searchTerm);
-        }
 
-        function loadDictionaryImageFallback(searchTerm) {
-            const section = document.getElementById('dictImageSection');
-            const img = document.getElementById('dictResImage');
-            const status = document.getElementById('dictImageStatus');
-            const attribution = document.getElementById('dictImageAttribution');
-            const key = String(searchTerm || '').trim().toLowerCase();
-            const drawings = {
-                apple: '<path d="M160 90 C126 48 70 78 68 137 C65 202 111 247 151 222 C161 216 169 216 180 222 C222 244 265 197 259 137 C254 78 197 49 164 91Z" fill="#ef4444" stroke="#991b1b" stroke-width="5"/><path d="M160 87 C150 57 158 38 178 28" fill="none" stroke="#854d0e" stroke-width="9" stroke-linecap="round"/><path d="M171 59 C193 25 231 34 239 46 C223 72 194 78 171 59Z" fill="#65a30d" stroke="#3f6212" stroke-width="4"/><path d="M94 120 Q105 92 128 91" fill="none" stroke="#fca5a5" stroke-width="9" stroke-linecap="round"/>',
-                book: '<path d="M48 68 Q100 47 150 78 V222 Q100 190 48 211Z" fill="#60a5fa" stroke="#1d4ed8" stroke-width="5"/><path d="M150 78 Q200 47 252 68 V211 Q200 190 150 222Z" fill="#bfdbfe" stroke="#1d4ed8" stroke-width="5"/><path d="M150 78 V222" stroke="#1e40af" stroke-width="5"/><path d="M68 95 Q104 85 127 101 M68 121 Q104 111 127 127 M173 101 Q206 85 233 95 M173 127 Q206 111 233 121" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>',
-                cat: '<path d="M78 112 L72 46 L119 79 Q160 62 201 79 L246 46 L240 112 Q260 145 245 183 Q221 224 159 224 Q96 224 73 183 Q58 145 78 112Z" fill="#fbbf24" stroke="#92400e" stroke-width="5"/><circle cx="125" cy="140" r="7" fill="#1f2937"/><circle cx="195" cy="140" r="7" fill="#1f2937"/><path d="M146 162 Q160 176 174 162 M160 162 V169 M130 171 L91 165 M130 181 L94 188 M190 171 L229 165 M190 181 L226 188" fill="none" stroke="#78350f" stroke-width="4" stroke-linecap="round"/>',
-                dog: '<path d="M86 95 Q49 68 47 126 Q45 166 84 164 L91 194 Q159 234 226 194 L232 164 Q270 162 264 122 Q257 73 225 96 L209 113 Q157 86 104 113Z" fill="#d6a16d" stroke="#854d0e" stroke-width="5"/><ellipse cx="160" cy="158" rx="47" ry="43" fill="#f5deb3"/><circle cx="137" cy="146" r="6" fill="#1f2937"/><circle cx="183" cy="146" r="6" fill="#1f2937"/><ellipse cx="160" cy="164" rx="12" ry="9" fill="#1f2937"/><path d="M145 180 Q160 193 175 180" fill="none" stroke="#854d0e" stroke-width="4" stroke-linecap="round"/>',
-                car: '<path d="M49 156 L68 112 Q73 100 91 100 H199 Q215 100 226 119 L245 156Z" fill="#38bdf8" stroke="#0369a1" stroke-width="5"/><path d="M91 108 H132 V149 H70Z M143 108 H197 Q205 108 213 149 H143Z" fill="#e0f2fe" stroke="#0369a1" stroke-width="4"/><rect x="43" y="151" width="210" height="47" rx="13" fill="#0284c7" stroke="#075985" stroke-width="5"/><circle cx="87" cy="199" r="20" fill="#334155" stroke="#0f172a" stroke-width="5"/><circle cx="210" cy="199" r="20" fill="#334155" stroke="#0f172a" stroke-width="5"/>',
-                house: '<path d="M45 127 L155 38 L265 127" fill="#fb923c" stroke="#9a3412" stroke-width="8" stroke-linejoin="round"/><rect x="68" y="122" width="174" height="111" rx="4" fill="#fde68a" stroke="#9a3412" stroke-width="6"/><rect x="137" y="167" width="40" height="66" rx="4" fill="#b45309"/><rect x="84" y="145" width="35" height="32" fill="#bae6fd" stroke="#9a3412" stroke-width="4"/><rect x="193" y="145" width="35" height="32" fill="#bae6fd" stroke="#9a3412" stroke-width="4"/>',
-                tree: '<path d="M151 130 H179 V231 H151Z" fill="#92400e"/><circle cx="164" cy="95" r="67" fill="#65a30d" stroke="#3f6212" stroke-width="5"/><circle cx="112" cy="126" r="44" fill="#84cc16" stroke="#3f6212" stroke-width="5"/><circle cx="213" cy="127" r="43" fill="#4d7c0f" stroke="#3f6212" stroke-width="5"/>',
-                sun: '<circle cx="160" cy="135" r="58" fill="#facc15" stroke="#ca8a04" stroke-width="6"/><g stroke="#f59e0b" stroke-width="10" stroke-linecap="round"><path d="M160 38 V20 M160 250 V232 M63 135 H42 M278 135 H257 M92 67 L77 52 M228 203 L243 218 M228 67 L243 52 M92 203 L77 218"/></g>',
-                flower: '<path d="M160 134 Q143 181 160 234" stroke="#16a34a" stroke-width="10" fill="none" stroke-linecap="round"/><path d="M158 196 Q117 161 107 190 Q123 216 158 208 M162 180 Q199 144 218 169 Q207 198 162 193" fill="#4ade80" stroke="#15803d" stroke-width="4"/><g fill="#f9a8d4" stroke="#db2777" stroke-width="4"><ellipse cx="160" cy="82" rx="25" ry="39"/><ellipse cx="199" cy="111" rx="25" ry="39" transform="rotate(60 199 111)"/><ellipse cx="185" cy="151" rx="25" ry="39" transform="rotate(130 185 151)"/><ellipse cx="135" cy="151" rx="25" ry="39" transform="rotate(50 135 151)"/><ellipse cx="121" cy="111" rx="25" ry="39" transform="rotate(-60 121 111)"/></g><circle cx="160" cy="119" r="26" fill="#facc15" stroke="#ca8a04" stroke-width="4"/>',
-                fish: '<path d="M59 135 Q117 67 203 135 Q117 203 59 135Z" fill="#38bdf8" stroke="#0369a1" stroke-width="5"/><path d="M204 135 L258 92 L258 178Z" fill="#0ea5e9" stroke="#0369a1" stroke-width="5"/><circle cx="100" cy="125" r="7" fill="#0f172a"/><path d="M137 103 Q154 135 137 167" fill="none" stroke="#e0f2fe" stroke-width="5"/>',
-                banana: '<path d="M64 52 Q91 176 197 192 Q227 195 251 164 Q217 231 157 228 Q61 206 44 65Z" fill="#facc15" stroke="#a16207" stroke-width="6" stroke-linejoin="round"/><path d="M63 52 L46 61 M251 164 L261 151" stroke="#854d0e" stroke-width="10" stroke-linecap="round"/>'
-            };
-            const aliases = { 사과:'apple', 책:'book', 고양이:'cat', 강아지:'dog', 개:'dog', 자동차:'car', 차:'car', 집:'house', 나무:'tree', 해:'sun', 태양:'sun', 꽃:'flower', 물고기:'fish', 바나나:'banana' };
-            const normalized = key.replace(/\s+/g, ' ');
-            const aliasKey = aliases[normalized] || normalized;
-            const drawingKey = Object.keys(drawings).find(name => aliasKey === name || aliasKey.includes(name)) || 'book';
-            const art = drawings[drawingKey];
-            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 270"><rect width="320" height="270" rx="22" fill="#f8fafc"/><circle cx="42" cy="35" r="5" fill="#c7d2fe"/><circle cx="280" cy="225" r="8" fill="#bae6fd"/><ellipse cx="160" cy="236" rx="100" ry="12" fill="#e2e8f0"/>${art}</svg>`;
-            section.classList.remove('hidden');
-            img.classList.remove('hidden');
-            img.alt = `${searchTerm} 그림`;
-            img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-            status.classList.add('hidden');
-            attribution.innerText = '앱에서 직접 그린 간단한 일러스트';
+                img.onload = () => {
+                    img.classList.remove('hidden');
+                    status.classList.add('hidden');
+                };
+                img.onerror = () => {
+                    img.classList.add('hidden');
+                    status.innerText = '이미지를 불러올 수 없습니다.';
+                    status.classList.remove('hidden');
+                };
+                img.alt = searchTerm + ' 이미지';
+                img.src = imageInfo.thumburl || imageInfo.url;
+                attribution.innerText = '이미지 출처: Wikimedia Commons · ' + String(match.title || '').replace(/^File:/, '');
+            } catch (error) {
+                console.warn('Wikimedia 이미지 검색 실패:', error);
+                status.innerText = '이미지 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+            } finally {
+                button.disabled = false;
+                button.classList.remove('opacity-50');
+            }
         }
 
         window.addEventListener('DOMContentLoaded', () => {
