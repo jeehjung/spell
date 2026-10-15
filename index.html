@@ -115,7 +115,7 @@
                     </button>
                     
                 </div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center justify-end gap-2 flex-wrap pl-2">
                     <button type="button" onclick="startSpellTest(false)" class="cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm flex items-center gap-1.5 pulse-btn">
                         <i class="fa-solid fa-pen-nib"></i> Spell Test
                     </button>
@@ -251,7 +251,8 @@
                 <p id="vocabQuizScore" class="text-sm font-extrabold text-emerald-700 mb-4">총 10문제 중 8문제를 맞혔습니다!</p>
                 <div id="vocabQuizResultList" class="flex-1 overflow-y-auto text-left space-y-2 mb-5 pr-1 border-t border-b border-slate-100 py-3"></div>
                 <div class="flex flex-col gap-2">
-                    <button type="button" onclick="startVocabularyQuiz()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm">다시 풀기</button>
+                    <button id="retryIncorrectVocabularyBtn" type="button" onclick="startVocabularyQuiz(true)" class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition text-sm"><i class="fa-solid fa-rotate-right mr-1"></i> 틀린 문제만 다시 풀기</button>
+                    <button type="button" onclick="startVocabularyQuiz(false)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm">전체 다시 풀기</button>
                     <button type="button" onclick="exitVocabularyQuiz()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">학습 화면으로 돌아가기</button>
                 </div>
             </div>
@@ -543,6 +544,7 @@
         let vocabularyQuizIndex = 0;
         let vocabularyQuizAnswers = [];
         let vocabularyQuizAnswered = false;
+        let vocabularyQuizIncorrectWords = [];
 
         // Current dictionary lookup result (kept in memory only; never persisted)
         let currentDictWord = null;
@@ -1649,7 +1651,11 @@
             window.speechSynthesis.cancel();
             showCardView();
         }
-        function startVocabularyQuiz() {
+        function startVocabularyQuiz(onlyIncorrect = false) {
+            if (onlyIncorrect && vocabularyQuizIncorrectWords.length === 0) {
+                alert('다시 풀 틀린 문제가 없습니다.');
+                return;
+            }
             if (!Array.isArray(wordsData) || wordsData.length < 2) {
                 alert('뜻 고르기 퀴즈를 만들려면 뜻이 있는 단어가 최소 2개 필요합니다.');
                 return;
@@ -1660,7 +1666,14 @@
                 return;
             }
 
-            vocabularyQuizWords = [...usableWords];
+            vocabularyQuizWords = onlyIncorrect
+                ? [...vocabularyQuizIncorrectWords]
+                : [...usableWords];
+            if (vocabularyQuizWords.length < 2 && !onlyIncorrect) {
+                // A full quiz can still use two or more words; the guard above handles smaller lists.
+                alert('뜻 고르기 퀴즈를 만들려면 뜻이 있는 단어가 최소 2개 필요합니다.');
+                return;
+            }
             for (let i = vocabularyQuizWords.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [vocabularyQuizWords[i], vocabularyQuizWords[j]] = [vocabularyQuizWords[j], vocabularyQuizWords[i]];
@@ -1752,9 +1765,11 @@
             const resultList = document.getElementById('vocabQuizResultList');
             resultList.innerHTML = '';
             let correctCount = 0;
+            vocabularyQuizIncorrectWords = [];
             vocabularyQuizWords.forEach((item, idx) => {
                 const answer = vocabularyQuizAnswers[idx];
                 if (answer && answer.isCorrect) correctCount++;
+                else vocabularyQuizIncorrectWords.push(item);
                 const row = document.createElement('div');
                 row.className = `p-3 rounded-xl border ${answer && answer.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`;
                 const word = document.createElement('p');
@@ -1770,6 +1785,9 @@
                 resultList.appendChild(row);
             });
             document.getElementById('vocabQuizScore').textContent = `총 ${vocabularyQuizWords.length}문제 중 ${correctCount}문제를 맞혔습니다!`;
+            const retryIncorrectBtn = document.getElementById('retryIncorrectVocabularyBtn');
+            if (vocabularyQuizIncorrectWords.length > 0) retryIncorrectBtn.classList.remove('hidden');
+            else retryIncorrectBtn.classList.add('hidden');
         }
 
         function exitVocabularyQuiz() {
