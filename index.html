@@ -935,7 +935,6 @@
             }
 
             // Keep up to 100 saved decks total, including favorites; favorites take priority.
-            const MAX_SAVED_DECKS = 100;
             if (decks.length > MAX_SAVED_DECKS) {
                 const favorites = decks.filter(d => d.isFavorite);
                 const nonFavorites = decks.filter(d => !d.isFavorite);
@@ -1031,7 +1030,7 @@
 
                 const result = await response.json();
                 const responseText = result.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || '';
-                const jsonMatch = responseText.match(/\[\s\S*\]/);
+                const jsonMatch = responseText.match(/\[[\s\S]*\]/);
                 const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
                 if (!Array.isArray(parsed) || parsed.length !== 10) {
                     throw new Error('AI가 정확히 10개의 단어를 반환하지 않았습니다.');
