@@ -115,12 +115,12 @@
                     </button>
                     
                 </div>
-                <div class="flex items-center justify-end gap-2 flex-wrap pl-2">
+                <div class="flex items-center gap-2">
                     <button type="button" onclick="startSpellTest(false)" class="cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm flex items-center gap-1.5 pulse-btn">
                         <i class="fa-solid fa-pen-nib"></i> Spell Test
                     </button>
                     <button type="button" onclick="startVocabularyQuiz()" class="cursor-pointer bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm flex items-center gap-1.5">
-                        <i class="fa-solid fa-list-check"></i> Vocabulary Quiz
+                        <i class="fa-solid fa-list-check"></i> Voca. Quiz
                     </button>
                 </div>
             </div>
@@ -1737,7 +1737,7 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'w-full text-left bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl p-4 text-sm font-semibold text-slate-700 transition';
-                button.textContent = `${String.fromCharCode(65 + choiceIndex)}. ${meaning}`;
+                button.textContent = meaning;
                 button.addEventListener('click', () => answerVocabularyQuestion(meaning, button));
                 container.appendChild(button);
             });
