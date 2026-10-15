@@ -125,6 +125,11 @@
                             <i class="fa-solid fa-volume-high"></i> 문장 듣기
                         </button>
                     </div>
+                    <div class="flex items-center gap-3 mb-3">
+                        <label for="speechRateSlider" class="text-xs font-semibold text-slate-500 whitespace-nowrap">읽기 속도</label>
+                        <input id="speechRateSlider" type="range" min="0.5" max="1.2" step="0.05" value="0.75" oninput="updateSpeechRate(this.value)" class="flex-1 accent-indigo-600">
+                        <span id="speechRateValue" class="text-xs font-bold text-indigo-600 w-10 text-right">0.75x</span>
+                    </div>
                     <p id="cardExampleEn" class="font-semibold text-slate-800 mb-2">I ate a sweet red apple.</p>
                     <p id="cardExampleKo" class="text-slate-500">나는 달콤한 빨간 사과를 먹었다.</p>
                 </div>
@@ -195,6 +200,11 @@
                         <button type="button" onclick="playCurrentTestAudio()" class="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full transition text-xs shadow-md">
                             <i class="fa-solid fa-volume-high text-xs"></i> 음성 다시 듣기
                         </button>
+                    </div>
+                    <div class="flex items-center gap-3 mb-3 px-1">
+                        <label for="testSpeechRateSlider" class="text-xs font-semibold text-slate-500 whitespace-nowrap">읽기 속도</label>
+                        <input id="testSpeechRateSlider" type="range" min="0.5" max="1.2" step="0.05" value="0.75" oninput="updateSpeechRate(this.value)" class="flex-1 accent-purple-600">
+                        <span id="testSpeechRateValue" class="text-xs font-bold text-purple-600 w-10 text-right">0.75x</span>
                     </div>
                 </div>
 
@@ -472,6 +482,8 @@
     <script>
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
+        const SPEECH_RATE_KEY = 'spell_speech_rate_v1';
+        const DEFAULT_SPEECH_RATE = 0.75;
         const OVERQUOTA_MSG = "API Key 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.";
         const UNAVAILABLE_MSG = "Google 서비스가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.";
 
@@ -494,6 +506,8 @@
         let currentDictWord = null;
 
         // Preserve the uploaded image in IndexedDB so a canceled/reloaded page can retry recognition.
+        initializeSpeechRateControls();
+
         const PENDING_IMAGE_DB_NAME = 'spell_image_progress_db';
         const PENDING_IMAGE_STORE_NAME = 'jobs';
         const PENDING_IMAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -1643,13 +1657,41 @@
             window.speechSynthesis.speak(utterance);
         }
 
+        function getSpeechRate() {
+            const saved = Number(localStorage.getItem(SPEECH_RATE_KEY));
+            return Number.isFinite(saved) && saved >= 0.5 && saved <= 1.2
+                ? saved
+                : DEFAULT_SPEECH_RATE;
+        }
+
+        function updateSpeechRate(value) {
+            const rate = Math.min(1.2, Math.max(0.5, Number(value) || DEFAULT_SPEECH_RATE));
+            try {
+                localStorage.setItem(SPEECH_RATE_KEY, String(rate));
+            } catch (e) {
+                console.warn('읽기 속도를 저장하지 못했습니다.', e);
+            }
+            ['speechRateSlider', 'testSpeechRateSlider'].forEach(id => {
+                const slider = document.getElementById(id);
+                if (slider) slider.value = String(rate);
+            });
+            ['speechRateValue', 'testSpeechRateValue'].forEach(id => {
+                const label = document.getElementById(id);
+                if (label) label.textContent = rate.toFixed(2).replace(/0$/, '') + 'x';
+            });
+        }
+
+        function initializeSpeechRateControls() {
+            updateSpeechRate(getSpeechRate());
+        }
+
         function speakExample() {
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
             const item = wordsData[currentIndex];
             const utterance = new SpeechSynthesisUtterance(item.exampleEn);
             utterance.lang = 'en-US';
-            utterance.rate = 0.75;
+            utterance.rate = getSpeechRate();
             window.speechSynthesis.speak(utterance);
         }
 
@@ -2030,7 +2072,7 @@
                 if (sentence) {
                     const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
                     sentenceUtterance.lang = 'en-US';
-                    sentenceUtterance.rate = 0.7;
+                    sentenceUtterance.rate = getSpeechRate();
                     sentenceUtterance.onend = playWordTwice;
                     window.speechSynthesis.speak(sentenceUtterance);
                 } else {
@@ -2047,7 +2089,7 @@
             const u1 = new SpeechSynthesisUtterance(word);
             u1.lang = 'en-US'; u1.rate = 0.85;
             const u3 = new SpeechSynthesisUtterance(exampleEn);
-            u3.lang = 'en-US'; u3.rate = 0.7;
+            u3.lang = 'en-US'; u3.rate = getSpeechRate();
             u1.onend = () => { window.speechSynthesis.speak(u3); };
             window.speechSynthesis.speak(u1);
         }
