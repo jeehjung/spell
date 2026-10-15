@@ -1846,8 +1846,10 @@
             document.getElementById('vocabQuizWord').textContent = item.word;
             document.getElementById('vocabQuizPhonetic').textContent = item.phonetic || '';
             const quizStressEl = document.getElementById('vocabQuizStressPattern');
-            quizStressEl.textContent = item.stressPattern ? `단어 강세: ${item.stressPattern} · 대문자 부분을 강하게 발음` : '';
-            quizStressEl.classList.toggle('hidden', !item.stressPattern);
+            quizStressEl.textContent = item.stressPattern
+                ? `단어 강세: ${item.stressPattern} · 대문자 부분을 강하게 발음`
+                : (item.phonetic ? '단어 강세: IPA의 ˈ 기호 뒤 음절을 강하게 발음' : '강세 정보 없음'); 
+            quizStressEl.classList.remove('hidden');
             document.getElementById('vocabQuizFeedback').className = 'hidden text-center text-sm font-bold mt-4';
             document.getElementById('vocabQuizFeedback').textContent = '';
             document.getElementById('vocabQuizNextBtn').classList.add('hidden');
@@ -1957,21 +1959,19 @@
             document.getElementById('cardPhonetic').innerText = item.phonetic || "[ - ]";
             const stressEl = document.getElementById('cardStressPattern');
             const stressPattern = String(item.stressPattern || '').trim();
-            stressEl.classList.toggle('hidden', !stressPattern);
+            stressEl.classList.remove('hidden');
             stressEl.innerHTML = '';
-            if (stressPattern) {
-                const label = document.createElement('span');
-                label.className = 'text-slate-500 font-medium mr-1';
-                label.textContent = '단어 강세';
-                const value = document.createElement('span');
-                value.className = 'tracking-wide';
-                value.textContent = stressPattern;
-                stressEl.append(label, value);
-                const hint = document.createElement('span');
-                hint.className = 'block text-xs font-normal text-slate-500 mt-1';
-                hint.textContent = '대문자 부분을 더 강하게 발음해 보세요.';
-                stressEl.appendChild(hint);
-            }
+            const label = document.createElement('span');
+            label.className = 'text-slate-500 font-medium mr-1';
+            label.textContent = '단어 강세';
+            const value = document.createElement('span');
+            value.className = 'tracking-wide';
+            value.textContent = stressPattern || 'IPA의 ˈ 뒤 음절';
+            stressEl.append(label, value);
+            const hint = document.createElement('span');
+            hint.className = 'block text-xs font-normal text-slate-500 mt-1';
+            hint.textContent = stressPattern ? '대문자 부분을 더 강하게 발음해 보세요.' : '강세 표시는 IPA의 ˈ 기호 바로 뒤에 나와요.';
+            stressEl.appendChild(hint);
             document.getElementById('cardMeaning').innerText = item.meaning;
             document.getElementById('cardExampleEn').innerText = item.exampleEn;
             document.getElementById('cardExampleKo').innerText = item.exampleKo;
