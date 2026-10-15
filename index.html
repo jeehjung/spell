@@ -1649,7 +1649,7 @@
             const item = wordsData[currentIndex];
             const utterance = new SpeechSynthesisUtterance(item.exampleEn);
             utterance.lang = 'en-US';
-            utterance.rate = 0.9;
+            utterance.rate = 0.75;
             window.speechSynthesis.speak(utterance);
         }
 
@@ -2030,7 +2030,7 @@
                 if (sentence) {
                     const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
                     sentenceUtterance.lang = 'en-US';
-                    sentenceUtterance.rate = 0.9;
+                    sentenceUtterance.rate = 0.7;
                     sentenceUtterance.onend = playWordTwice;
                     window.speechSynthesis.speak(sentenceUtterance);
                 } else {
@@ -2047,7 +2047,7 @@
             const u1 = new SpeechSynthesisUtterance(word);
             u1.lang = 'en-US'; u1.rate = 0.85;
             const u3 = new SpeechSynthesisUtterance(exampleEn);
-            u3.lang = 'en-US'; u3.rate = 0.9;
+            u3.lang = 'en-US'; u3.rate = 0.7;
             u1.onend = () => { window.speechSynthesis.speak(u3); };
             window.speechSynthesis.speak(u1);
         }
