@@ -85,6 +85,11 @@
             </div>
 
             <div class="w-full flex flex-col gap-3">
+                <button type="button" onclick="startDailyWordStudy()" class="cursor-pointer w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-lg shadow-emerald-100 inline-flex items-center justify-center gap-3 text-base pulse-btn">
+                    <i class="fa-solid fa-calendar-day text-xl"></i>
+                    <span>오늘의 단어 공부</span>
+                </button>
+                <p class="text-xs text-slate-500 -mt-1 mb-1">초등학생에게 유용한 영어 단어 10개 · 하루 1회 생성</p>
                 <button type="button" onclick="document.getElementById('cameraInput').click()" class="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-4 px-6 rounded-2xl transition shadow-lg shadow-indigo-100 inline-flex items-center justify-center gap-3 text-base">
                     <i class="fa-solid fa-camera text-xl"></i>
                     <span>지금 사진 촬영하기</span>
@@ -929,20 +934,144 @@
                 currentDeckTitle = defaultTitle;
             }
 
-            // Enforce max 20 decks limit (including favorites)
-            if (decks.length > 20) {
-                let favorites = decks.filter(d => d.isFavorite);
-                let nonFavorites = decks.filter(d => !d.isFavorite);
-                
-                if (favorites.length >= 20) {
-                    decks = favorites.slice(0, 20);
-                } else {
-                    const slotsLeft = 20 - favorites.length;
-                    decks = [...favorites, ...nonFavorites.slice(0, slotsLeft)];
-                }
+            // Keep up to 100 saved decks total, including favorites; favorites take priority.
+            const MAX_SAVED_DECKS = 100;
+            if (decks.length > MAX_SAVED_DECKS) {
+                const favorites = decks.filter(d => d.isFavorite);
+                const nonFavorites = decks.filter(d => !d.isFavorite);
+                decks = favorites.length >= MAX_SAVED_DECKS
+                    ? favorites.slice(0, MAX_SAVED_DECKS)
+                    : [...favorites, ...nonFavorites.slice(0, MAX_SAVED_DECKS - favorites.length)];
             }
 
             saveDecksToStorage(decks);
+        }
+
+        const DAILY_WORDS_STORAGE_KEY = 'spell_daily_words_v1';
+        const MAX_SAVED_DECKS = 100;
+
+        function getLocalDateKey(date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function loadDailyWordsRecord() {
+            try {
+                const record = JSON.parse(localStorage.getItem(DAILY_WORDS_STORAGE_KEY) || 'null');
+                return record && record.date === getLocalDateKey() && Array.isArray(record.words) && record.words.length === 10
+                    ? record
+                    : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function startDailyWordStudy() {
+            const todayRecord = loadDailyWordsRecord();
+            if (todayRecord) {
+                let decks = getSavedDecks();
+                let deck = decks.find(item => item.id === todayRecord.deckId);
+                if (!deck) {
+                    // If the user removed the deck from the archive, restore today's exact saved set.
+                    wordsData = [...todayRecord.words];
+                    currentDeckId = null;
+                    currentDeckTitle = `오늘의 단어 ${todayRecord.date}`;
+                    saveDeckToHistory(currentDeckTitle, wordsData);
+                    todayRecord.deckId = currentDeckId;
+                    try {
+                        localStorage.setItem(DAILY_WORDS_STORAGE_KEY, JSON.stringify(todayRecord));
+                    } catch (e) {
+                        console.warn('오늘의 단어 기록을 갱신하지 못했습니다.', e);
+                    }
+                } else {
+                    wordsData = [...deck.words];
+                    currentDeckId = deck.id;
+                    currentDeckTitle = deck.title;
+                }
+                currentIndex = 0;
+                enterRecognizedWordsStudyMode();
+                return;
+            }
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey || !apiKey.trim()) {
+                alert('오늘의 단어를 생성하려면 먼저 상단의 API Key 설정에서 Gemini API Key를 입력해 주세요.');
+                openApiKeyModal();
+                return;
+            }
+
+            showLoading('초등학생을 위한 오늘의 영어 단어 10개를 만드는 중...');
+            try {
+                const systemPrompt = 'You are an experienced English teacher for elementary-school children in Korea. Create exactly 10 useful English vocabulary words appropriate for elementary students. Choose common words useful in school, home, friendship, nature, daily routines, feelings, and simple activities. Avoid duplicates, rare words, and adult topics. For each item return word, phonetic (IPA, in brackets), meaning (natural Korean meaning), exampleEn (one short child-friendly English sentence), and exampleKo (accurate Korean translation). Return ONLY a valid JSON array with exactly 10 objects. Do not use markdown fences.';
+                const userQuery = 'Generate exactly 10 distinct, useful English vocabulary words for Korean elementary-school students. Each object must have keys word, phonetic, meaning, exampleEn, exampleKo. Keep example sentences short and easy to understand.';
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: userQuery }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        generationConfig: { responseMimeType: 'application/json' }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    if (response.status === 503 || errText.includes('UNAVAILABLE')) {
+                        alert(UNAVAILABLE_MSG);
+                    } else if (response.status === 429 || errText.includes('RESOURCE_EXHAUSTED') || errText.toLowerCase().includes('quota')) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`API 오류 (${response.status}): ${errText}`);
+                    }
+                    throw new Error(`오늘의 단어 생성 API 오류 (${response.status})`);
+                }
+
+                const result = await response.json();
+                const responseText = result.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || '';
+                const jsonMatch = responseText.match(/\[\s\S*\]/);
+                const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+                if (!Array.isArray(parsed) || parsed.length !== 10) {
+                    throw new Error('AI가 정확히 10개의 단어를 반환하지 않았습니다.');
+                }
+
+                const seen = new Set();
+                const generatedWords = parsed.map(item => ({
+                    word: String(item.word || '').trim(),
+                    phonetic: String(item.phonetic || '').trim(),
+                    meaning: String(item.meaning || '').trim(),
+                    exampleEn: String(item.exampleEn || '').trim(),
+                    exampleKo: String(item.exampleKo || '').trim()
+                })).filter(item => {
+                    const key = item.word.toLocaleLowerCase();
+                    if (!item.word || !item.meaning || !item.exampleEn || !item.exampleKo || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+                if (generatedWords.length !== 10) {
+                    throw new Error('생성된 단어가 10개가 아니거나 필수 정보가 빠져 있습니다. 다시 시도해 주세요.');
+                }
+
+                wordsData = generatedWords;
+                currentIndex = 0;
+                currentDeckId = null;
+                currentDeckTitle = `오늘의 단어 ${getLocalDateKey()}`;
+                saveDeckToHistory(currentDeckTitle, wordsData);
+                const record = {
+                    date: getLocalDateKey(),
+                    deckId: currentDeckId,
+                    title: currentDeckTitle,
+                    words: [...wordsData]
+                };
+                localStorage.setItem(DAILY_WORDS_STORAGE_KEY, JSON.stringify(record));
+                enterRecognizedWordsStudyMode();
+            } catch (err) {
+                console.error('오늘의 단어 생성 오류:', err);
+                alert(err.message && err.message.startsWith('생성된 단어') ? err.message : '오늘의 단어를 만들지 못했습니다. API Key와 연결 상태를 확인한 뒤 다시 시도해 주세요.');
+                backToUpload();
+            }
         }
 
         function openHistoryModal() {
