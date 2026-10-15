@@ -233,7 +233,12 @@
                 <div class="text-center mb-6">
                     <span class="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl inline-block mb-3 border border-emerald-200">VOCABULARY QUIZ</span>
                     <p class="text-sm text-slate-500 mb-2">다음 영어 단어의 뜻을 고르세요.</p>
-                    <h2 id="vocabQuizWord" class="text-4xl font-black text-slate-900 break-words">apple</h2>
+                    <div class="flex items-center justify-center gap-3">
+                        <h2 id="vocabQuizWord" class="text-4xl font-black text-slate-900 break-words">apple</h2>
+                        <button type="button" onclick="playVocabularyQuizWord()" aria-label="영어 단어 발음 듣기" class="shrink-0 w-11 h-11 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-xl flex items-center justify-center text-lg transition">
+                            <i class="fa-solid fa-volume-high"></i>
+                        </button>
+                    </div>
                     <p id="vocabQuizPhonetic" class="text-sm text-indigo-500 font-mono mt-2"></p>
                 </div>
                 <div id="vocabQuizChoices" class="flex flex-col gap-3"></div>
@@ -1688,6 +1693,16 @@
             renderVocabularyQuestion();
         }
 
+        function playVocabularyQuizWord() {
+            const item = vocabularyQuizWords[vocabularyQuizIndex];
+            if (!item || !String(item.word || '').trim() || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(String(item.word).trim());
+            utterance.lang = 'en-US';
+            utterance.rate = getSpeechRate();
+            window.speechSynthesis.speak(utterance);
+        }
+
         function renderVocabularyQuestion() {
             if (vocabularyQuizIndex >= vocabularyQuizWords.length) {
                 showVocabularyQuizSummary();
@@ -1726,6 +1741,8 @@
                 button.addEventListener('click', () => answerVocabularyQuestion(meaning, button));
                 container.appendChild(button);
             });
+            // Automatically pronounce the English word when each quiz question appears.
+            playVocabularyQuizWord();
         }
 
         function answerVocabularyQuestion(selectedMeaning, selectedButton) {
