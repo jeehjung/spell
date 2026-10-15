@@ -149,6 +149,7 @@
                         <span class="text-sm font-bold text-indigo-600 block mb-1">오늘의 단어</span>
                         <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">apple</h2>
                         <span id="cardPhonetic" class="text-base font-mono text-indigo-500 font-semibold mt-1 block">[ˈæpəl]</span>
+                        <div id="cardStressPattern" class="hidden mt-2 text-sm font-semibold text-emerald-700"></div>
                     </div>
                     <button type="button" onclick="speakCurrentWord()" aria-label="단어 발음 듣기" class="w-14 h-14 bg-indigo-100 hover:bg-indigo-200 active:bg-indigo-300 text-indigo-700 rounded-2xl flex items-center justify-center text-xl transition shadow-sm">
                         <i class="fa-solid fa-volume-high"></i>
@@ -245,6 +246,7 @@
                         </button>
                     </div>
                     <p id="vocabQuizPhonetic" class="text-sm text-indigo-500 font-mono mt-2"></p>
+                    <p id="vocabQuizStressPattern" class="hidden text-sm font-semibold text-emerald-700 mt-2"></p>
                 </div>
                 <div id="vocabQuizChoices" class="flex flex-col gap-3"></div>
                 <p id="vocabQuizFeedback" class="hidden text-center text-sm font-bold mt-4"></p>
@@ -1003,8 +1005,8 @@
 
             showLoading('국제학교 Grade 2 수준의 오늘의 영어 단어 10개를 만드는 중...');
             try {
-                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create exactly 10 vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select 10 varied words each day, mostly high-utility words that a Grade 2 international-school student can understand and use; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), meaning (clear Korean meaning, optionally with a short usage nuance), exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation). Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Return ONLY a valid JSON array with exactly 10 objects. Do not use markdown fences.';
-                const userQuery = 'Generate exactly 10 distinct vocabulary words suitable for a child in Grade 2 at an international school who has already completed English kindergarten. The words should be a clear step above basic everyday vocabulary and support classroom learning, reading comprehension, science, social studies, and expressive writing. Include the keys word, phonetic, meaning, exampleEn, exampleKo for every word.';
+                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create exactly 10 vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select 10 varied words each day, mostly high-utility words that a Grade 2 international-school student can understand and use; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning (clear Korean meaning, optionally with a short usage nuance), exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation). In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Return ONLY a valid JSON array with exactly 10 objects. Do not use markdown fences.';
+                const userQuery = 'Generate exactly 10 distinct vocabulary words suitable for a child in Grade 2 at an international school who has already completed English kindergarten. The words should be a clear step above basic everyday vocabulary and support classroom learning, reading comprehension, science, social studies, and expressive writing. Include the keys word, phonetic, stressPattern, meaning, exampleEn, exampleKo for every word. stressPattern must use hyphens between syllables and ALL CAPS for the stressed syllable.';
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -1040,6 +1042,7 @@
                 const generatedWords = parsed.map(item => ({
                     word: String(item.word || '').trim(),
                     phonetic: String(item.phonetic || '').trim(),
+                    stressPattern: String(item.stressPattern || '').trim(),
                     meaning: String(item.meaning || '').trim(),
                     exampleEn: String(item.exampleEn || '').trim(),
                     exampleKo: String(item.exampleKo || '').trim()
@@ -1842,6 +1845,9 @@
             document.getElementById('vocabQuizQuestionNumber').textContent = `(문제 ${vocabularyQuizIndex + 1})`;
             document.getElementById('vocabQuizWord').textContent = item.word;
             document.getElementById('vocabQuizPhonetic').textContent = item.phonetic || '';
+            const quizStressEl = document.getElementById('vocabQuizStressPattern');
+            quizStressEl.textContent = item.stressPattern ? `단어 강세: ${item.stressPattern} · 대문자 부분을 강하게 발음` : '';
+            quizStressEl.classList.toggle('hidden', !item.stressPattern);
             document.getElementById('vocabQuizFeedback').className = 'hidden text-center text-sm font-bold mt-4';
             document.getElementById('vocabQuizFeedback').textContent = '';
             document.getElementById('vocabQuizNextBtn').classList.add('hidden');
@@ -1949,6 +1955,23 @@
 
             document.getElementById('cardWord').innerText = item.word;
             document.getElementById('cardPhonetic').innerText = item.phonetic || "[ - ]";
+            const stressEl = document.getElementById('cardStressPattern');
+            const stressPattern = String(item.stressPattern || '').trim();
+            stressEl.classList.toggle('hidden', !stressPattern);
+            stressEl.innerHTML = '';
+            if (stressPattern) {
+                const label = document.createElement('span');
+                label.className = 'text-slate-500 font-medium mr-1';
+                label.textContent = '단어 강세';
+                const value = document.createElement('span');
+                value.className = 'tracking-wide';
+                value.textContent = stressPattern;
+                stressEl.append(label, value);
+                const hint = document.createElement('span');
+                hint.className = 'block text-xs font-normal text-slate-500 mt-1';
+                hint.textContent = '대문자 부분을 더 강하게 발음해 보세요.';
+                stressEl.appendChild(hint);
+            }
             document.getElementById('cardMeaning').innerText = item.meaning;
             document.getElementById('cardExampleEn').innerText = item.exampleEn;
             document.getElementById('cardExampleKo').innerText = item.exampleKo;
