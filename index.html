@@ -1661,7 +1661,7 @@
                 return;
             }
             const usableWords = wordsData.filter(item => item && String(item.word || '').trim() && String(item.meaning || '').trim());
-            if (usableWords.length < 2) {
+            if (!onlyIncorrect && usableWords.length < 2) {
                 alert('영어 단어와 뜻이 입력된 단어가 최소 2개 필요합니다.');
                 return;
             }
@@ -1703,8 +1703,8 @@
             document.getElementById('vocabQuizNextBtn').classList.add('hidden');
 
             const correctMeaning = String(item.meaning).trim();
-            const distractors = [...new Set(vocabularyQuizWords
-                .filter((candidate, idx) => idx !== vocabularyQuizIndex && String(candidate.meaning || '').trim() && String(candidate.meaning).trim() !== correctMeaning)
+            const distractors = [...new Set(wordsData
+                .filter(candidate => candidate && String(candidate.word || '').trim() && String(candidate.meaning || '').trim() && String(candidate.meaning).trim() !== correctMeaning)
                 .map(candidate => String(candidate.meaning).trim()))];
             for (let i = distractors.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
