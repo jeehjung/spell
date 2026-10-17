@@ -2402,7 +2402,8 @@
                 secondWord.lang = 'en-US';
                 secondWord.rate = getSpeechRate();
 
-                firstWord.onend = () => window.speechSynthesis.speak(secondWord);
+                // 단어를 두 번 읽을 때 사이에 여유를 둔다.
+                firstWord.onend = () => setTimeout(() => window.speechSynthesis.speak(secondWord), 800);
                 window.speechSynthesis.speak(firstWord);
             };
 
@@ -2436,7 +2437,8 @@
                     const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
                     sentenceUtterance.lang = 'en-US';
                     sentenceUtterance.rate = getSpeechRate();
-                    sentenceUtterance.onend = playWordTwice;
+                    // 예문이 끝난 뒤 단어 발음이 시작되기까지 잠깐 더 기다린다.
+                    sentenceUtterance.onend = () => setTimeout(playWordTwice, 1400);
                     window.speechSynthesis.speak(sentenceUtterance);
                 } else {
                     // If no example sentence is available, play the target word twice.
