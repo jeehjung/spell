@@ -1903,6 +1903,15 @@
             const nextBtn = document.getElementById('vocabQuizNextBtn');
             nextBtn.innerHTML = vocabularyQuizIndex + 1 >= vocabularyQuizWords.length ? '결과 보기 <i class="fa-solid fa-award ml-1"></i>' : '다음 문제 <i class="fa-solid fa-arrow-right ml-1"></i>';
             nextBtn.classList.remove('hidden');
+
+            // 정답이면 잠깐 피드백을 보여준 뒤 자동으로 다음 문제로 이동한다.
+            // 오답은 정답을 확인할 시간을 주기 위해 기존처럼 직접 다음 버튼을 누르게 한다.
+            if (isCorrect) {
+                nextBtn.classList.add('hidden');
+                setTimeout(() => {
+                    if (vocabularyQuizAnswered) nextVocabularyQuestion();
+                }, 700);
+            }
         }
 
         function nextVocabularyQuestion() {
