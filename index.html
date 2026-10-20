@@ -542,6 +542,8 @@
         let currentIndex = 0;
         let lastTestSubmitAt = 0;
         let testEnterHeld = false;
+        let spellTestAudioTimer = null;
+        let spellTestAudioRunId = 0;
         let currentDeckId = null;
         let currentDeckTitle = "";
 
@@ -2377,15 +2379,26 @@
             }, 100);
         }
 
+        function stopSpellTestAudio() {
+            // 이전 문제/재생의 대기 타이머와 음성을 모두 중단한다.
+            spellTestAudioRunId++;
+            if (spellTestAudioTimer !== null) {
+                clearTimeout(spellTestAudioTimer);
+                spellTestAudioTimer = null;
+            }
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        }
+
         function playCurrentTestAudio() {
             if (testWords.length === 0 || testIndex >= testWords.length) return;
             const item = testWords[testIndex];
             document.getElementById('testProgressIndicator').innerText = `문제 ${testIndex + 1} / ${testWords.length}`;
             document.getElementById('testQuestionNumber').innerText = `(문제 ${testIndex + 1})`;
-            document.getElementById('testSpellingInput').value = '';
 
+            // 다시 듣기 시 입력한 답은 유지하고, 이전 음성 재생만 종료한다.
+            stopSpellTestAudio();
+            const audioRunId = spellTestAudioRunId;
             if (!('speechSynthesis' in window)) return;
-            window.speechSynthesis.cancel();
 
             // Spell test audio order: question number, example sentence, then the target word twice.
             const questionNumber = testIndex + 1;
@@ -2403,8 +2416,14 @@
                 secondWord.rate = getSpeechRate();
 
                 // 단어를 두 번 읽을 때 사이에 여유를 둔다.
-                firstWord.onend = () => setTimeout(() => window.speechSynthesis.speak(secondWord), Math.round(900 / getSpeechRate()));
-                window.speechSynthesis.speak(firstWord);
+                firstWord.onend = () => {
+                    if (audioRunId !== spellTestAudioRunId) return;
+                    spellTestAudioTimer = setTimeout(() => {
+                        spellTestAudioTimer = null;
+                        if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(secondWord);
+                    }, Math.round(900 / getSpeechRate()));
+                };
+                if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(firstWord);
             };
 
             const numberUtterance = new SpeechSynthesisUtterance(
@@ -2433,19 +2452,26 @@
             numberUtterance.lang = 'en-US';
             numberUtterance.rate = getSpeechRate();
             numberUtterance.onend = () => {
+                if (audioRunId !== spellTestAudioRunId) return;
                 if (sentence) {
                     const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
                     sentenceUtterance.lang = 'en-US';
                     sentenceUtterance.rate = getSpeechRate();
                     // 예문이 끝난 뒤 단어 발음이 시작되기까지 잠깐 더 기다린다.
-                    sentenceUtterance.onend = () => setTimeout(playWordTwice, Math.round(1500 / getSpeechRate()));
-                    window.speechSynthesis.speak(sentenceUtterance);
+                    sentenceUtterance.onend = () => {
+                        if (audioRunId !== spellTestAudioRunId) return;
+                        spellTestAudioTimer = setTimeout(() => {
+                            spellTestAudioTimer = null;
+                            if (audioRunId === spellTestAudioRunId) playWordTwice();
+                        }, Math.round(1500 / getSpeechRate()));
+                    };
+                    if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(sentenceUtterance);
                 } else {
                     // If no example sentence is available, play the target word twice.
                     playWordTwice();
                 }
             };
-            window.speechSynthesis.speak(numberUtterance);
+            if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(numberUtterance);
         }
 
         function playSpecificAudio(word, exampleEn) {
@@ -2483,10 +2509,11 @@
             const inputVal = document.getElementById('testSpellingInput').value.trim();
             userAnswers[testIndex] = inputVal;
 
+            stopSpellTestAudio();
             testIndex++;
             if (testIndex < testWords.length) {
-                playCurrentTestAudio();
                 document.getElementById('testSpellingInput').value = '';
+                playCurrentTestAudio();
                 document.getElementById('testSpellingInput').focus();
             } else {
                 showTestSummary();
