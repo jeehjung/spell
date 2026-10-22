@@ -98,20 +98,10 @@
                     <i class="fa-solid fa-images text-xl"></i>
                     <span>사진 라이브러리에서 선택</span>
                 </button>
-                <div class="border-t border-slate-100 my-2"></div>
-                <button type="button" onclick="document.getElementById('bookCameraInput').click()" class="cursor-pointer w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-lg inline-flex items-center justify-center gap-3 text-base">
-                    <i class="fa-solid fa-book-open-reader text-xl"></i>
-                    <span>책읽기모드 · 사진부터 끝까지 읽기</span>
-                </button>
-                <button type="button" onclick="document.getElementById('bookImageInput').click()" class="cursor-pointer w-full bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border-2 border-amber-200 font-bold py-3 px-6 rounded-2xl transition inline-flex items-center justify-center gap-3 text-sm">
-                    <i class="fa-solid fa-images"></i>
-                    <span>책읽기 사진 라이브러리에서 선택</span>
-                </button>
-                <p class="text-xs text-slate-500">책읽기모드는 사진 속 영어 본문 전체를 추출해 처음부터 끝까지 읽어줍니다.</p>
+                <button type="button" onclick="setReadingModeAndChooseImage('book'); document.getElementById('cameraInput').click()" class="cursor-pointer w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-lg inline-flex items-center justify-center gap-3 text-base"><i class="fa-solid fa-book-open-reader text-xl"></i><span>한번에 읽기 모드 · 사진 촬영</span></button>
+                <button type="button" onclick="setReadingModeAndChooseImage('book'); document.getElementById('imageInput').click()" class="cursor-pointer w-full bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border-2 border-amber-200 font-bold py-3 px-6 rounded-2xl transition inline-flex items-center justify-center gap-3 text-sm"><i class="fa-solid fa-images"></i><span>한번에 읽기 모드 · 사진 선택</span></button>
                 <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
                 <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
-                <input type="file" id="bookCameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleBookImageUpload(event)">
-                <input type="file" id="bookImageInput" accept="image/*" class="hidden" onchange="handleBookImageUpload(event)">
             </div>
         </div>
 
@@ -608,6 +598,7 @@
         let bookReadingRunId = 0;
         let bookReadingChunks = [];
         let bookReadingChunkIndex = 0;
+        let selectedImageReadingMode = 'vocabulary';
 
         // Cache is used only by AI autofill; dictionary search results are never cached.
         const WORD_INFO_CACHE_KEY = 'spell_word_info_cache_v1';
@@ -1655,22 +1646,35 @@
             }
             if (imageRecognitionActive) return;
 
-            showLoading("이미지를 기기에 임시 저장했어요. Gemini AI로 인식 중...");
+            const readingMode = selectedImageReadingMode;
+            selectedImageReadingMode = 'vocabulary';
+            showLoading(readingMode === 'book' ? '사진 속 영어 본문을 처음부터 끝까지 추출하는 중...' : '이미지를 기기에 임시 저장했어요. Gemini AI로 인식 중...');
 
             const reader = new FileReader();
             reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
                 imageRecognitionActive = true;
                 try {
-                    // Keep only the latest pending image; save it before starting the API request.
-                    await clearPendingImageJob();
-                    await savePendingImageJob({
-                        base64Data,
-                        mimeType: file.type || 'image/jpeg',
-                        savedAt: new Date().toISOString(),
-                        status: 'processing'
-                    });
-                    await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
+                    if (readingMode === 'book') {
+                        bookReadingText = await extractBookTextFromImage(base64Data, file.type || 'image/jpeg', apiKey);
+                        if (!bookReadingText.trim()) throw new Error('사진에서 읽을 수 있는 영어 본문을 찾지 못했습니다.');
+                        stopBookReading();
+                        document.getElementById('bookReadingText').textContent = bookReadingText;
+                        document.getElementById('bookReadingStatus').textContent = '본문 추출 완료 · 처음부터 읽기를 누르세요.';
+                        document.getElementById('uploadView').classList.add('hidden');
+                        document.getElementById('loadingView').classList.add('hidden');
+                        document.getElementById('cardView').classList.add('hidden');
+                        document.getElementById('testView').classList.add('hidden');
+                        document.getElementById('testSummaryView').classList.add('hidden');
+                        document.getElementById('vocabularyQuizView').classList.add('hidden');
+                        document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+                        document.getElementById('bookReadingView').classList.remove('hidden');
+                        document.getElementById('bookReadingView').classList.add('flex');
+                    } else {
+                        await clearPendingImageJob();
+                        await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
+                        await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
+                    }
                 } catch (err) {
                     console.error("Extraction error:", err);
                     alert('이미지 저장 또는 인식 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
@@ -1678,57 +1682,6 @@
                 } finally {
                     imageRecognitionActive = false;
                     await showPendingImageRecovery();
-                    event.target.value = '';
-                }
-            };
-            reader.onerror = () => {
-                alert('이미지 파일을 읽지 못했습니다. 다시 선택해 주세요.');
-                backToUpload();
-                event.target.value = '';
-            };
-            reader.readAsDataURL(file);
-        }
-
-        function handleBookImageUpload(event) {
-            const file = event.target.files && event.target.files[0];
-            if (!file) return;
-            const apiKey = getStoredApiKey();
-            if (!apiKey || !apiKey.trim()) {
-                openApiKeyModal();
-                event.target.value = '';
-                return;
-            }
-            if (imageRecognitionActive) {
-                alert('이미지 인식 작업이 진행 중입니다. 잠시 후 다시 시도해 주세요.');
-                event.target.value = '';
-                return;
-            }
-            showLoading('책 사진에서 영어 본문 전체를 추출하는 중...');
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                imageRecognitionActive = true;
-                try {
-                    const base64Data = String(e.target.result).split(',')[1];
-                    bookReadingText = await extractBookTextFromImage(base64Data, file.type || 'image/jpeg', apiKey);
-                    if (!bookReadingText.trim()) throw new Error('사진에서 읽을 수 있는 영어 본문을 찾지 못했습니다.');
-                    stopBookReading();
-                    document.getElementById('bookReadingText').textContent = bookReadingText;
-                    document.getElementById('bookReadingStatus').textContent = '본문 추출 완료 · 처음부터 읽기를 누르세요.';
-                    document.getElementById('uploadView').classList.add('hidden');
-                    document.getElementById('loadingView').classList.add('hidden');
-                    document.getElementById('cardView').classList.add('hidden');
-                    document.getElementById('testView').classList.add('hidden');
-                    document.getElementById('testSummaryView').classList.add('hidden');
-                    document.getElementById('vocabularyQuizView').classList.add('hidden');
-                    document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
-                    document.getElementById('bookReadingView').classList.remove('hidden');
-                    document.getElementById('bookReadingView').classList.add('flex');
-                } catch (err) {
-                    console.error('책읽기모드 이미지 인식 오류:', err);
-                    if (!String(err.message || '').includes('API 오류')) alert(err.message || '책읽기모드에서 사진을 읽지 못했습니다.');
-                    backToUpload();
-                } finally {
-                    imageRecognitionActive = false;
                     event.target.value = '';
                 }
             };
