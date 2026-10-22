@@ -183,8 +183,8 @@
                     <button type="button" onclick="switchRecognizedStudyMode('words')" class="cursor-pointer bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 text-xs sm:text-sm font-extrabold px-3 py-3 rounded-xl transition flex items-center justify-center gap-2">
                         <i class="fa-solid fa-layer-group"></i> 단어 공부 모드
                     </button>
-                    <button type="button" onclick="switchRecognizedStudyMode('book')" class="cursor-pointer bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200 text-xs sm:text-sm font-extrabold px-3 py-3 rounded-xl transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-book-open-reader"></i> 한번에 읽기 모드
+                    <button id="bookReadingModeBtn" type="button" onclick="switchRecognizedStudyMode('book')" class="cursor-pointer bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200 text-xs sm:text-sm font-extrabold px-3 py-3 rounded-xl transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-book-open-reader"></i> <span id="bookReadingModeBtnLabel">한번에 읽기 모드</span>
                     </button>
                 </div>
             </div>
@@ -264,7 +264,7 @@
                 <p class="text-sm text-slate-500 mb-6">어떤 방식으로 공부할까요?</p>
                 <div class="grid grid-cols-1 gap-3">
                     <button type="button" onclick="chooseRecognizedStudyMode('words')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-layer-group text-xl"></i><span>단어 공부 모드</span></button>
-                    <button type="button" onclick="chooseRecognizedStudyMode('book')" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-book-open-reader text-xl"></i><span>한번에 읽기 모드</span></button>
+                    <button id="bookReadingChoiceBtn" type="button" onclick="chooseRecognizedStudyMode('book')" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-book-open-reader text-xl"></i><span id="bookReadingChoiceBtnLabel">한번에 읽기 모드</span></button>
                 </div>
                 <p id="imageModeChoiceStatus" class="text-xs text-slate-500 mt-4">단어·숙어와 영어 본문을 인식했어요.</p>
             </div>
@@ -678,7 +678,20 @@
         const PENDING_IMAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
         let imageRecognitionActive = false;
         let bookReadingText = '';
+        let bookReadingRecognitionStatus = 'idle'; // idle | processing | ready | error
         let bookReadingRunId = 0;
+
+        function updateBookReadingModeButton() {
+            const label = bookReadingRecognitionStatus === 'processing'
+                ? '본문 인식 중...'
+                : bookReadingRecognitionStatus === 'error'
+                    ? '본문 인식 실패 · 다시 사진 인식'
+                    : '한번에 읽기 모드';
+            ['bookReadingModeBtnLabel', 'bookReadingChoiceBtnLabel'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = label;
+            });
+        }
         let bookReadingChunks = [];
         let bookReadingChunkIndex = 0;
         let bookReadingChunkCharIndex = 0;
@@ -2228,25 +2241,49 @@
                         } catch (cleanupError) {
                             console.warn('임시 이미지 정리에 실패했습니다.', cleanupError);
                         }
-                        try {
-                            bookReadingText = await extractBookTextFromImage(base64Data, mimeType, apiKey);
-                        } catch (bookOcrError) {
-                            console.warn('본문 전체 인식에 실패했습니다. 단어 공부 모드는 이용할 수 있습니다.', bookOcrError);
-                            bookReadingText = '';
-                        }
-                        if (currentDeckId !== null) {
-                            const savedDecks = getSavedDecks();
-                            const savedDeck = savedDecks.find(deck => deck.id === currentDeckId);
-                            if (savedDeck) { savedDeck.bookText = bookReadingText; saveDecksToStorage(savedDecks); }
-                        }
-                        // After photo recognition, open the word-study page directly.
-                        // The book-reading mode remains available from the mode button above the cards.
+                        // Show the recognized vocabulary immediately. Full-passage OCR runs in the background.
+                        bookReadingText = '';
+                        bookReadingRecognitionStatus = 'processing';
+                        updateBookReadingModeButton();
+                        const recognizedDeckId = currentDeckId;
+
+                        // After photo recognition, open the word-study page without waiting for passage OCR.
                         const choiceView = document.getElementById('imageModeChoiceView');
                         if (choiceView) {
                             choiceView.classList.add('hidden');
                             choiceView.classList.remove('flex');
                         }
                         enterRecognizedWordsStudyMode();
+
+                        void (async () => {
+                            try {
+                                const extractedBookText = await extractBookTextFromImage(base64Data, mimeType, apiKey);
+                                bookReadingText = extractedBookText;
+                                bookReadingRecognitionStatus = extractedBookText ? 'ready' : 'error';
+                                if (!extractedBookText) {
+                                    console.warn('본문 전체 인식 결과가 비어 있습니다. 단어 공부 모드는 계속 이용할 수 있습니다.');
+                                }
+                            } catch (bookOcrError) {
+                                console.warn('본문 전체 인식에 실패했습니다. 단어 공부 모드는 이용할 수 있습니다.', bookOcrError);
+                                bookReadingText = '';
+                                bookReadingRecognitionStatus = 'error';
+                            }
+
+                            // Save passage text to the deck created by this recognition, even if the user has switched decks.
+                            if (recognizedDeckId !== null) {
+                                try {
+                                    const savedDecks = getSavedDecks();
+                                    const savedDeck = savedDecks.find(deck => deck.id === recognizedDeckId);
+                                    if (savedDeck) {
+                                        savedDeck.bookText = bookReadingText;
+                                        saveDecksToStorage(savedDecks);
+                                    }
+                                } catch (saveError) {
+                                    console.warn('본문 인식 결과를 단어장에 저장하지 못했습니다.', saveError);
+                                }
+                            }
+                            updateBookReadingModeButton();
+                        })();
                         return;
                     }
                 }
@@ -2998,8 +3035,12 @@
                 return;
             }
 
-            if (!String(bookReadingText || '').trim()) {
-                alert('읽을 영어 본문이 없습니다. 영어 본문이 포함된 사진을 다시 인식해 주세요.');
+            if (bookReadingRecognitionStatus === 'processing') {
+                alert('본문을 인식하고 있습니다. 완료되면 한번에 읽기 모드를 사용할 수 있습니다.');
+                return;
+            }
+            if (bookReadingRecognitionStatus === 'error' || !String(bookReadingText || '').trim()) {
+                alert('본문 인식에 실패했거나 읽을 영어 본문이 없습니다. 영어 본문이 포함된 사진을 다시 인식해 주세요.');
                 return;
             }
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
@@ -3036,6 +3077,16 @@
             document.getElementById('imageModeChoiceView').classList.add('hidden');
             document.getElementById('imageModeChoiceView').classList.remove('flex');
             if (mode === 'book') {
+                if (bookReadingRecognitionStatus === 'processing') {
+                    alert('본문을 인식하고 있습니다. 완료되면 한번에 읽기 모드를 사용할 수 있습니다.');
+                    enterRecognizedWordsStudyMode();
+                    return;
+                }
+                if (bookReadingRecognitionStatus === 'error' || !String(bookReadingText || '').trim()) {
+                    alert('본문 인식에 실패했거나 읽을 영어 본문이 없습니다. 영어 본문이 포함된 사진을 다시 인식해 주세요.');
+                    enterRecognizedWordsStudyMode();
+                    return;
+                }
                 bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
                 bookReadingChunkIndex = 0;
                 bookReadingChunkCharIndex = 0;
