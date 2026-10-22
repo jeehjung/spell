@@ -218,10 +218,9 @@
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100">
                 <h2 class="text-2xl font-black text-slate-900 mb-2"><i class="fa-solid fa-book-open-reader text-amber-500 mr-2"></i>책읽기모드</h2>
                 <p class="text-sm text-slate-500 mb-4">사진에서 추출한 영어 본문을 처음부터 끝까지 읽습니다. 상단의 전체 읽기 속도를 조절할 수 있어요.</p>
-                <div class="grid grid-cols-3 gap-2 mb-4">
-                    <button type="button" onclick="playBookReading()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play" aria-label="Play"></i></button>
-                    <button type="button" onclick="pauseBookReading()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-pause" aria-label="Pause"></i></button>
-                    <button type="button" onclick="stopBookReading()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop" aria-label="Stop"></i></button>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button type="button" onclick="playBookReading()" aria-label="처음부터 재생" title="처음부터 재생" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play" aria-hidden="true"></i></button>
+                    <button type="button" onclick="stopBookReading()" aria-label="정지" title="정지" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop" aria-hidden="true"></i></button>
                 </div>
                 <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-2">읽을 준비가 되었어요.</p>
                 <div class="mb-3 rounded-xl bg-slate-50 border border-slate-200 p-3">
@@ -1784,20 +1783,8 @@
             if (status) status.textContent = '선택한 위치부터 재생할 수 있습니다.';
         }
         function playBookReading() {
-            if (!bookReadingText.trim()) {
-                document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.';
-                return;
-            }
-            if (!('speechSynthesis' in window)) {
-                document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.';
-                return;
-            }
-            // 일시정지 상태라면 현재 위치부터 이어 읽고, 정지/완료 상태라면 처음부터 재생한다.
-            if (bookReadingPaused) {
-                resumeBookReading();
-            } else {
-                startBookReading();
-            }
+            // 재생 버튼을 누를 때마다 기존 음성을 취소하고 항상 처음부터 읽습니다.
+            startBookReading();
         }
 
         function startBookReading() {
