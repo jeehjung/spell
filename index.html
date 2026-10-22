@@ -235,8 +235,11 @@
                         <span class="text-xs font-bold text-slate-600">읽기 진행률</span>
                         <span id="bookReadingProgressLabel" class="text-xs font-bold text-amber-700">0%</span>
                     </div>
-                    <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden" role="progressbar" aria-label="읽기 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bookReadingProgressTrack">
-                        <div id="bookReadingProgressFill" class="h-full bg-amber-500 rounded-full transition-[width] duration-200" style="width:0%"></div>
+                    <div class="relative w-full">
+                        <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden pointer-events-none" role="progressbar" aria-label="읽기 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bookReadingProgressTrack">
+                            <div id="bookReadingProgressFill" class="h-full bg-amber-500 rounded-full transition-[width] duration-200" style="width:0%"></div>
+                        </div>
+                        <input id="bookReadingSeekSlider" type="range" min="0" max="100" step="0.1" value="0" oninput="seekBookReading(this.value)" aria-label="읽기 위치 조절" title="읽기 위치 조절" class="absolute inset-0 w-full h-2.5 opacity-0 cursor-pointer">
                     </div>
                 </div>
                 <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
@@ -1797,12 +1800,31 @@
             const label = document.getElementById('bookReadingProgressLabel');
             const fill = document.getElementById('bookReadingProgressFill');
             const track = document.getElementById('bookReadingProgressTrack');
+            const slider = document.getElementById('bookReadingSeekSlider');
             const totalChars = String(bookReadingText || '').length;
             const position = Math.max(0, Math.min(bookReadingChunkCharIndex, totalChars));
-            const percent = totalChars ? Math.round(position / totalChars * 100) : 0;
-            if (label) label.textContent = `${percent}%`;
+            const percent = totalChars ? Math.round(position / totalChars * 1000) / 10 : 0;
+            if (label) label.textContent = `${Math.round(percent)}%`;
             if (fill) fill.style.width = `${percent}%`;
-            if (track) track.setAttribute('aria-valuenow', String(percent));
+            if (track) track.setAttribute('aria-valuenow', String(Math.round(percent)));
+            if (slider && document.activeElement !== slider) slider.value = String(percent);
+        }
+
+        function seekBookReading(value) {
+            const totalChars = String(bookReadingText || '').length;
+            if (!totalChars) return;
+            const percent = Math.max(0, Math.min(100, Number(value) || 0));
+            bookReadingChunkCharIndex = Math.min(totalChars - 1, Math.floor(totalChars * percent / 100));
+            bookReadingChunkIndex = 0;
+            bookReadingPaused = true;
+            bookReadingRunId++;
+            clearBookReadingHighlightTimer();
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            setBookReadingPlayButton(false);
+            renderBookReadingScript();
+            updateBookReadingProgress();
+            const status = document.getElementById('bookReadingStatus');
+            if (status) status.textContent = '읽기 위치를 변경했어요. 재생 버튼을 누르면 선택한 위치부터 읽습니다.';
         }
         function setBookReadingPlayButton(isPlaying) {
             const button = document.getElementById('bookReadingPlayPauseBtn');
