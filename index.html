@@ -219,9 +219,9 @@
                 <h2 class="text-2xl font-black text-slate-900 mb-2"><i class="fa-solid fa-book-open-reader text-amber-500 mr-2"></i>책읽기모드</h2>
                 <p class="text-sm text-slate-500 mb-4">사진에서 추출한 영어 본문을 처음부터 끝까지 읽습니다. 상단의 전체 읽기 속도를 조절할 수 있어요.</p>
                 <div class="grid grid-cols-3 gap-2 mb-4">
-                    <button type="button" onclick="playBookReading()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play mr-1"></i> 재생</button>
-                    <button type="button" onclick="pauseBookReading()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-pause mr-1"></i> 일시정지</button>
-                    <button type="button" onclick="stopBookReading()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop mr-1"></i> 정지</button>
+                    <button type="button" onclick="playBookReading()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play" aria-label="Play"></i></button>
+                    <button type="button" onclick="pauseBookReading()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-pause" aria-label="Pause"></i></button>
+                    <button type="button" onclick="stopBookReading()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop" aria-label="Stop"></i></button>
                 </div>
                 <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-3">읽을 준비가 되었어요.</p>
                 <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
@@ -1799,36 +1799,36 @@
 
         function pauseBookReading() {
             if (!('speechSynthesis' in window)) return;
-            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending || !bookReadingPaused) {
+                // 모바일 브라우저에서 pause/resume이 멈춘 채 복귀하지 않는 경우를 피하고,
+                // 현재 문장 인덱스를 유지해 재생 시 해당 구간부터 다시 읽는다.
                 bookReadingPaused = true;
-                window.speechSynthesis.pause();
+                bookReadingRunId++;
+                window.speechSynthesis.cancel();
                 document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 이어서 읽습니다.';
             }
         }
 
         function resumeBookReading() {
             if (!('speechSynthesis' in window)) return;
+            if (!bookReadingText.trim()) {
+                document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.';
+                return;
+            }
             if (!bookReadingChunks.length) {
-                if (!bookReadingText.trim()) { document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.'; return; }
                 bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
                 bookReadingChunkIndex = 0;
-                bookReadingRunId++;
             }
             if (bookReadingChunkIndex >= bookReadingChunks.length) {
                 startBookReading();
                 return;
             }
-            const runId = bookReadingRunId;
-            window.speechSynthesis.resume();
+            // resume() 대신 현재 문장을 새 utterance로 시작해 Android 브라우저에서도 안정적으로 재생한다.
             bookReadingPaused = false;
+            bookReadingRunId++;
+            const runId = bookReadingRunId;
             document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
-            // 일부 모바일 브라우저는 resume()만으로 음성이 재개되지 않으므로, 재개 실패 시 현재 구간을 다시 시작한다.
-            setTimeout(() => {
-                if (runId !== bookReadingRunId || bookReadingPaused) return;
-                if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
-                    speakNextBookChunk(runId);
-                }
-            }, 500);
+            speakNextBookChunk(runId);
         }
 
         function stopBookReading() {
