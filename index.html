@@ -8,7 +8,15 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Pretendard', sans-serif; }
+        body { font-family: 'Pretendard', sans-serif; font-size: 17px; }
+        /* Improve readability and touch targets, especially on mobile. */
+        button { min-height: 46px; }
+        button.text-xs { font-size: 0.9rem !important; }
+        button.text-sm { font-size: 1rem !important; }
+        input, textarea, select { font-size: 1rem; }
+        #cardExampleEn { font-size: 1.15rem; line-height: 1.65; }
+        #cardExampleKo { font-size: 1rem; line-height: 1.6; }
+        #cardMeaning { font-size: 1.15rem; line-height: 1.8; white-space: pre-line; }
         .card-shadow { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
         .pulse-btn { animation: pulse 2s infinite; }
         @keyframes pulse {
@@ -22,9 +30,9 @@
 
     <!-- Header Section -->
     <header class="w-full max-w-xl text-center py-4 relative z-10">
-        <div class="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2">
-            <i class="fa-solid fa-graduation-cap mr-2"></i> Iun's Word Study
-        </div>
+        <button type="button" onclick="window.location.reload()" title="페이지 새로고침" aria-label="페이지 새로고침" class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2 transition cursor-pointer">
+            <i class="fa-solid fa-graduation-cap mr-2"></i> <span id="studyTitleName">Iun's Word Study</span>
+        </button>
         <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
 
         <!-- Top Navigation / Utility Bar -->
@@ -33,12 +41,23 @@
                 <i class="fa-solid fa-key text-amber-500"></i>
                 <span id="apiKeyBtnText">API Key 설정</span>
             </button>
+            <button type="button" onclick="openNameModal()" class="cursor-pointer text-xs bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-600 border border-slate-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-user-pen text-indigo-500"></i>
+                <span id="studyNameBtnText">이름 설정</span>
+            </button>
             <button type="button" onclick="openDictionaryModal()" class="cursor-pointer text-xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-book-open text-indigo-600"></i> 사전 검색
             </button>
             <button type="button" onclick="openHistoryModal()" class="cursor-pointer text-xs bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
                 <i class="fa-solid fa-clock-rotate-left text-amber-600"></i> 저장된 단어장 보관함
             </button>
+        </div>
+        <div class="mt-3 mx-auto w-full max-w-md bg-white/90 border border-indigo-100 rounded-2xl px-4 py-3 shadow-sm">
+            <div class="flex items-center gap-3">
+                <label for="speechRateSlider" class="text-xs font-semibold text-slate-600 whitespace-nowrap">전체 읽기 속도</label>
+                <input id="speechRateSlider" type="range" min="0.5" max="1.2" step="0.05" value="0.75" oninput="updateSpeechRate(this.value)" class="flex-1 accent-indigo-600">
+                <span id="speechRateValue" class="text-xs font-bold text-indigo-600 w-10 text-right">0.75x</span>
+            </div>
         </div>
     </header>
 
@@ -56,11 +75,32 @@
                 Gemini AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.
             </p>
 
-            <label class="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-2xl transition shadow-lg shadow-indigo-100 inline-flex items-center justify-center gap-2 text-sm">
-                <i class="fa-solid fa-image"></i>
-                <span>사진 선택 또는 촬영하기</span>
+            <div id="pendingImageRecovery" class="hidden text-left bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
+                <p class="text-sm font-bold text-amber-900 mb-1">이전 이미지 인식 작업이 남아 있어요</p>
+                <p class="text-xs text-amber-800 leading-relaxed mb-3">페이지가 닫히거나 브라우저가 중단된 경우, 저장된 이미지로 인식을 다시 시도할 수 있습니다. 재시도하면 Gemini API가 다시 호출됩니다.</p>
+                <div class="flex gap-2">
+                    <button type="button" onclick="resumePendingImageRecognition()" class="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs px-3 py-2.5 rounded-xl transition">인식 다시 시도</button>
+                    <button type="button" onclick="discardPendingImageRecognition()" class="bg-white hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs px-3 py-2.5 rounded-xl transition">삭제</button>
+                </div>
+            </div>
+
+            <div class="w-full flex flex-col gap-3">
+                <button type="button" onclick="startDailyWordStudy()" class="cursor-pointer w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 active:from-emerald-700 active:to-teal-800 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-lg shadow-emerald-100 inline-flex items-center justify-center gap-3 text-base pulse-btn">
+                    <i class="fa-solid fa-calendar-day text-xl"></i>
+                    <span>오늘의 단어 공부</span>
+                </button>
+                <p class="text-xs text-slate-500 -mt-1 mb-1">초등학생에게 유용한 영어 단어 10개 · 하루 1회 생성</p>
+                <button type="button" onclick="document.getElementById('cameraInput').click()" class="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-4 px-6 rounded-2xl transition shadow-lg shadow-indigo-100 inline-flex items-center justify-center gap-3 text-base">
+                    <i class="fa-solid fa-camera text-xl"></i>
+                    <span>지금 사진 촬영하기</span>
+                </button>
+                <button type="button" onclick="document.getElementById('imageInput').click()" class="cursor-pointer w-full bg-white hover:bg-slate-50 active:bg-slate-100 text-indigo-700 border-2 border-indigo-200 font-bold py-4 px-6 rounded-2xl transition inline-flex items-center justify-center gap-3 text-base">
+                    <i class="fa-solid fa-images text-xl"></i>
+                    <span>사진 라이브러리에서 선택</span>
+                </button>
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
                 <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
-            </label>
+            </div>
         </div>
 
         <!-- Loading View -->
@@ -76,43 +116,49 @@
             <div class="flex items-center justify-between px-2">
                 <div class="flex items-center gap-2">
                     <button type="button" onclick="backToUpload()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
-                        <i class="fa-solid fa-arrow-left"></i> 처음으로
+                        <i class="fa-solid fa-arrow-left"></i> Home
                     </button>
-                    <span id="wordIndexBadge" class="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">Word #1</span>
+                    
                 </div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-2">
                     <button type="button" onclick="startSpellTest(false)" class="cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm flex items-center gap-1.5 pulse-btn">
-                        <i class="fa-solid fa-pen-nib"></i> 단어 스펠링 테스트
+                        <i class="fa-solid fa-pen-nib"></i> Spell Test
+                    </button>
+                    <button type="button" onclick="startVocabularyQuiz()" class="cursor-pointer bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm flex items-center gap-1.5 pulse-btn">
+                        <i class="fa-solid fa-list-check"></i> Voca. Quiz
                     </button>
                 </div>
             </div>
 
             <!-- Flash Card Box -->
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
+                <!-- Reading order: sentence first, then the target word -->
+                <div class="bg-slate-50 rounded-2xl p-5 border border-slate-100 relative group mb-5">
+                    <div class="flex items-center justify-between gap-3 mb-2">
+                        <span class="text-sm font-bold text-slate-500">먼저 문장 읽기</span>
+                        <button type="button" onclick="speakExample()" class="min-w-[120px] bg-white border border-indigo-200 rounded-xl px-4 py-2 text-indigo-700 hover:bg-indigo-50 font-bold text-sm flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-volume-high"></i> 문장 듣기
+                        </button>
+                    </div>
+                    <p id="cardExampleEn" class="font-semibold text-slate-800 mb-2">I ate a sweet red apple.</p>
+                    <p id="cardExampleKo" class="text-slate-500">나는 달콤한 빨간 사과를 먹었다.</p>
+                </div>
+
                 <div class="flex items-start justify-between mb-4">
                     <div>
-                        <h2 id="cardWord" class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">apple</h2>
-                        <span id="cardPhonetic" class="text-sm font-mono text-indigo-500 font-semibold mt-0.5 block">[ˈæpəl]</span>
+                        <span class="text-sm font-bold text-indigo-600 block mb-1">오늘의 단어</span>
+                        <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">apple</h2>
+                        <span id="cardPhonetic" class="text-base font-mono text-indigo-500 font-semibold mt-1 block">[ˈæpəl]</span>
+                        <div id="cardStressPattern" class="hidden mt-2 text-sm font-semibold text-emerald-700"></div>
                     </div>
-                    <button type="button" onclick="speakCurrentWord()" class="w-12 h-12 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-600 rounded-2xl flex items-center justify-center text-lg transition shadow-sm">
+                    <button type="button" onclick="speakCurrentWord()" aria-label="단어 발음 듣기" class="w-14 h-14 bg-indigo-100 hover:bg-indigo-200 active:bg-indigo-300 text-indigo-700 rounded-2xl flex items-center justify-center text-xl transition shadow-sm">
                         <i class="fa-solid fa-volume-high"></i>
                     </button>
                 </div>
 
                 <div class="border-t border-slate-100 pt-4 mb-5">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">뜻 (Meaning)</span>
-                    <p id="cardMeaning" class="text-lg font-bold text-slate-800">사과</p>
-                </div>
-
-                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 relative group">
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">예문 (Example)</span>
-                        <button type="button" onclick="speakExample()" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold flex items-center gap-1">
-                            <i class="fa-solid fa-volume-high"></i> 음성 듣기
-                        </button>
-                    </div>
-                    <p id="cardExampleEn" class="text-sm font-semibold text-slate-800 mb-1">I ate a sweet red apple.</p>
-                    <p id="cardExampleKo" class="text-xs text-slate-500">나는 달콤한 빨간 사과를 먹었다.</p>
+                    <span class="text-sm font-bold text-slate-500 uppercase tracking-wider block mb-2">뜻 (Meaning)</span>
+                    <p id="cardMeaning" class="font-bold text-slate-800">사과</p>
                 </div>
 
                 <!-- Navigation Controls inside Card -->
@@ -147,36 +193,114 @@
             </div>
         </div>
 
+        <!-- Choose study mode after photo recognition -->
+        <div id="imageModeChoiceView" class="hidden w-full max-w-xl flex-col gap-3 my-auto">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center">
+                <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-check-double"></i></div>
+                <h2 class="text-2xl font-black text-slate-900 mb-2">사진 인식 완료</h2>
+                <p class="text-sm text-slate-500 mb-6">어떤 방식으로 공부할까요?</p>
+                <div class="grid grid-cols-1 gap-3">
+                    <button type="button" onclick="chooseRecognizedStudyMode('words')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-layer-group text-xl"></i><span>단어 공부 모드</span></button>
+                    <button type="button" onclick="chooseRecognizedStudyMode('book')" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-book-open-reader text-xl"></i><span>한번에 읽기 모드</span></button>
+                </div>
+                <p id="imageModeChoiceStatus" class="text-xs text-slate-500 mt-4">단어·숙어와 영어 본문을 인식했어요.</p>
+            </div>
+        </div>
+
+        <!-- Book Reading Mode -->
+        <div id="bookReadingView" class="hidden w-full max-w-xl flex-col gap-3 my-auto">
+            <div class="flex items-center justify-between px-2">
+                <button type="button" onclick="exitBookReadingMode()" class="bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-2 rounded-full text-sm font-bold">
+                    <i class="fa-solid fa-arrow-left"></i> 나가기
+                </button>
+                <span class="text-sm font-extrabold text-amber-700 bg-amber-50 px-3 py-2 rounded-xl border border-amber-200">BOOK READING</span>
+            </div>
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100">
+                <h2 class="text-2xl font-black text-slate-900 mb-2"><i class="fa-solid fa-book-open-reader text-amber-500 mr-2"></i>책읽기모드</h2>
+                <p class="text-sm text-slate-500 mb-4">사진에서 추출한 영어 본문을 처음부터 끝까지 읽습니다. 상단의 전체 읽기 속도를 조절할 수 있어요.</p>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <button type="button" onclick="playBookReading()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play mr-1"></i> 재생</button>
+                    <button type="button" onclick="pauseBookReading()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-pause mr-1"></i> 일시정지</button>
+                    <button type="button" onclick="stopBookReading()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop mr-1"></i> 정지</button>
+                </div>
+                <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-3">읽을 준비가 되었어요.</p>
+                <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
+            </div>
+        </div>
+
         <!-- Spell Test View (Continuous Input) -->
         <div id="testView" class="hidden w-full max-w-xl flex flex-col gap-3 my-auto">
             <div class="flex items-center justify-between px-2">
                 <button type="button" onclick="exitSpellTest()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
-                    <i class="fa-solid fa-arrow-left"></i> 테스트 나가기
+                    <i class="fa-solid fa-arrow-left"></i> Exit Test
                 </button>
-                <span id="testProgressIndicator" class="text-xs font-extrabold text-purple-600 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100">Test 1 / 10</span>
+                <span id="testProgressIndicator" class="text-sm font-extrabold text-purple-700 bg-purple-50 px-3 py-2 rounded-xl border border-purple-200">문제 1 / 10</span>
             </div>
 
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
                 <div class="text-center mb-6">
-                    <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full inline-block mb-3 border border-indigo-100">
-                        🔊 단어 2회 반복 후 예문 재생
+                    <span class="text-sm font-bold text-indigo-700 bg-indigo-50 px-3 py-2 rounded-xl inline-block mb-2 border border-indigo-200">
+                        🔊 문장 먼저 읽고 단어 2회 반복
                     </span>
                     <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
                         <button type="button" onclick="playCurrentTestAudio()" class="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full transition text-xs shadow-md">
                             <i class="fa-solid fa-volume-high text-xs"></i> 음성 다시 듣기
                         </button>
                     </div>
-                </div>
+                    </div>
 
                 <div class="mb-6">
-                    <label class="block text-xs font-bold text-slate-700 mb-2 text-center">스펠링 입력</label>
-                    <input type="text" id="testSpellingInput" placeholder="단어를 입력하세요" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" onkeyup="if(event.key==='Enter') submitTestAnswer()" class="w-full text-center text-xl font-bold px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-purple-500 font-mono tracking-wider">
+                    <label class="block text-base font-extrabold text-slate-800 mb-3 text-center"><span id="testQuestionNumber" class="inline-flex items-center justify-center bg-purple-100 text-purple-800 border border-purple-200 rounded-lg px-3 py-1 mr-1">(문제 1)</span> 스펠링 입력</label>
+                    <input type="text" id="testSpellingInput" placeholder="단어를 입력하세요" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" inputmode="text" enterkeyhint="done" data-lpignore="true" data-1p-ignore="true" onkeydown="handleTestInputKeydown(event)" class="w-full text-center text-xl font-bold px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-purple-500 font-mono tracking-wider">
                 </div>
 
                 <div class="flex justify-center">
                     <button type="button" onclick="submitTestAnswer()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 px-6 rounded-2xl transition shadow-md text-xs flex items-center justify-center gap-1.5">
                         <span>다음 문제로</span> <i class="fa-solid fa-arrow-right"></i>
                     </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vocabulary Quiz View (English word -> Korean meaning multiple choice) -->
+        <div id="vocabularyQuizView" class="hidden w-full max-w-xl flex flex-col gap-3 my-auto">
+            <div class="flex items-center justify-between px-2">
+                <button type="button" onclick="exitVocabularyQuiz()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-left"></i> 나가기
+                </button>
+                <span id="vocabQuizProgress" class="text-sm font-extrabold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">문제 1 / 10</span>
+            </div>
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100">
+                <div class="text-center mb-6">
+                    <span class="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-2 rounded-xl inline-block mb-3 border border-emerald-200">VOCABULARY QUIZ</span>
+                    <p class="text-sm text-slate-500 mb-2"><span id="vocabQuizQuestionNumber" class="inline-flex items-center justify-center bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg px-2 py-1 mr-1 font-extrabold">(문제 1)</span> 다음 영어 단어의 뜻을 고르세요.</p>
+                    <div class="flex items-center justify-center gap-3">
+                        <h2 id="vocabQuizWord" class="text-4xl font-black text-slate-900 break-words">apple</h2>
+                        <button type="button" onclick="playVocabularyQuizWord()" aria-label="영어 단어 발음 듣기" class="shrink-0 w-11 h-11 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-xl flex items-center justify-center text-lg transition">
+                            <i class="fa-solid fa-volume-high"></i>
+                        </button>
+                    </div>
+                    <p id="vocabQuizPhonetic" class="text-sm text-indigo-500 font-mono mt-2"></p>
+                    <p id="vocabQuizStressPattern" class="hidden text-sm font-semibold text-emerald-700 mt-2"></p>
+                </div>
+                <div id="vocabQuizChoices" class="flex flex-col gap-3"></div>
+                <p id="vocabQuizFeedback" class="hidden text-center text-sm font-bold mt-4"></p>
+                <button id="vocabQuizNextBtn" type="button" onclick="nextVocabularyQuestion()" class="hidden w-full mt-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-6 rounded-2xl transition text-sm">다음 문제 <i class="fa-solid fa-arrow-right ml-1"></i></button>
+            </div>
+        </div>
+
+        <div id="vocabularyQuizSummaryView" class="hidden w-full max-w-xl my-auto">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center max-h-[85vh] flex flex-col">
+                <div class="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl">
+                    <i class="fa-solid fa-award"></i>
+                </div>
+                <h3 class="text-xl font-black text-slate-900 mb-1">Vocabulary Quiz 완료!</h3>
+                <p id="vocabQuizScore" class="text-sm font-extrabold text-emerald-700 mb-4">총 10문제 중 8문제를 맞혔습니다!</p>
+                <div id="vocabQuizResultList" class="flex-1 overflow-y-auto text-left space-y-2 mb-5 pr-1 border-t border-b border-slate-100 py-3"></div>
+                <div class="flex flex-col gap-2">
+                    <button id="retryIncorrectVocabularyBtn" type="button" onclick="startVocabularyQuiz(true)" class="hidden w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition text-sm"><i class="fa-solid fa-rotate-right mr-1"></i> 틀린 문제만 다시 풀기</button>
+                    <button type="button" onclick="startVocabularyQuiz(false)" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm">전체 다시 풀기</button>
+                    <button type="button" onclick="exitVocabularyQuiz()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">학습 화면으로 돌아가기</button>
                 </div>
             </div>
         </div>
@@ -236,6 +360,25 @@
                 </button>
             </div>
 
+            <div class="flex gap-2 mb-3 shrink-0">
+                <button type="button" onclick="toggleDictionaryHistory()" class="flex-1 bg-white hover:bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl px-3 py-2 text-xs font-bold transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i> 검색 기록 보기
+                    <span id="dictHistoryCount" class="bg-indigo-100 rounded-full px-2 py-0.5">0</span>
+                </button>
+            </div>
+
+            <div id="dictHistoryPanel" class="hidden shrink-0 mb-3 border border-slate-200 rounded-2xl bg-white p-3">
+                <div class="flex items-center justify-between mb-2 gap-2">
+                    <span id="dictHistoryTitle" class="text-xs font-extrabold text-slate-700">최근 사전 검색</span>
+                    <div class="flex gap-2 shrink-0">
+                        <button type="button" onclick="clearDictionaryHistory()" class="text-[10px] font-bold text-rose-600 hover:text-rose-700">기록 삭제</button>
+                        <button type="button" onclick="toggleDictionaryHistory(false)" class="text-[10px] font-bold text-slate-500">닫기</button>
+                    </div>
+                </div>
+
+                <div id="dictHistoryList" class="max-h-40 overflow-y-auto space-y-1"></div>
+            </div>
+
             <!-- Loader inside Modal -->
             <div id="dictLoading" class="hidden py-6 text-center shrink-0">
                 <div class="w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
@@ -254,8 +397,20 @@
                     </button>
                 </div>
                 <div>
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">의미 (Meaning)</span>
+                    <span id="dictResMeaningLabel" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">의미 (Meaning)</span>
                     <p id="dictResMeaning" class="text-xs font-semibold text-slate-800 mt-0.5">뜻 설명</p>
+                </div>
+                <div id="dictImageSection" class="hidden">
+                    <button id="dictImageSearchBtn" type="button" onclick="searchDictionaryImage()" class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition">
+                        <i class="fa-solid fa-image"></i> 위키 이미지 검색
+                    </button>
+                    <div id="dictImageResult" class="hidden mt-2">
+                        <div class="rounded-xl overflow-hidden bg-white border border-slate-200 flex justify-center">
+                            <img id="dictResImage" alt="검색한 명사 이미지" class="hidden max-h-56 max-w-full object-contain" loading="lazy">
+                            <p id="dictImageStatus" class="text-xs text-slate-400 p-4"></p>
+                        </div>
+                        <p id="dictImageAttribution" class="text-[10px] text-slate-400 mt-1"></p>
+                    </div>
                 </div>
                 <div>
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">예문 (Example)</span>
@@ -292,19 +447,32 @@
                 <!-- History items rendered dynamically -->
             </div>
 
-            <div id="savedDeckAudioPanel" class="hidden mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-2xl shrink-0">
-                <p id="savedDeckAudioTitle" class="text-xs font-bold text-indigo-800 text-center mb-2">Read aloud</p>
-                <div class="flex justify-center gap-2">
-                    <button type="button" onclick="resumeSavedDeckAudio()" aria-label="Play" title="Play" class="w-11 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center"><i class="fa-solid fa-play"></i></button>
-                    <button type="button" onclick="pauseSavedDeckAudio()" aria-label="Pause" title="Pause" class="w-11 h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center"><i class="fa-solid fa-pause"></i></button>
-                    <button type="button" onclick="stopSavedDeckAudio()" aria-label="Stop" title="Stop" class="w-11 h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center"><i class="fa-solid fa-stop"></i></button>
-                </div>
-            </div>
-
             <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
+                <button type="button" onclick="deleteNonFavoriteDecks()" class="w-full mb-2 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-700 border border-rose-200 font-bold text-xs px-3 py-2.5 rounded-xl transition inline-flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-trash-can"></i> 즐겨찾기 외 단어장 모두 삭제
+                </button>
                 <button type="button" onclick="closeHistoryModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs">
                     닫기
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Study Name Setup Modal -->
+    <div id="nameModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
+            <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
+                <i class="fa-solid fa-user-pen"></i>
+            </div>
+            <h3 class="text-lg font-extrabold text-slate-900 mb-1">이름 설정</h3>
+            <p class="text-xs text-slate-500 mb-4 leading-relaxed">입력한 이름이 상단에 ‘이름's Word Study’ 형식으로 표시됩니다.</p>
+            <div class="mb-5">
+                <label for="studyNameInput" class="block text-xs font-bold text-slate-700 mb-1">표시할 이름</label>
+                <input type="text" id="studyNameInput" maxlength="40" placeholder="이름을 입력하세요" autocomplete="off" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+            </div>
+            <div class="flex gap-2">
+                <button type="button" onclick="closeNameModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">취소</button>
+                <button type="button" onclick="saveStudyName()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">저장하기</button>
             </div>
         </div>
     </div>
@@ -318,14 +486,14 @@
             <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
             <p class="text-xs text-slate-500 mb-4 leading-relaxed">
                 Gemini AI 단어 분석 및 자동 채우기 기능을 사용하려면 API 키가 필요합니다.<br>
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 font-bold underline inline-flex items-center gap-1 mt-1">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" onclick="if (window.AndroidBridge) { window.AndroidBridge.openExternalUrl(this.href); return false; }" class="text-indigo-600 hover:text-indigo-800 font-bold underline inline-flex items-center gap-1 mt-1">
                     <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> 여기서 무료 API Key 발급받기
                 </a>
             </p>
 
             <div class="mb-5">
                 <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key</label>
-                <input type="text" id="apiKeyInput" placeholder="AIzaSy..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-mono">
+                <input type="text" id="apiKeyInput" placeholder="AIzaSy..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" style="-webkit-text-security: disc;" data-lpignore="true" data-1p-ignore="true" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-mono">
             </div>
 
             <div class="flex gap-2">
@@ -388,16 +556,29 @@
         </div>
     </div>
 
+    <!-- App Info Footer -->
+    <footer class="w-full max-w-xl text-center py-5 mt-6 border-t border-indigo-100 text-[11px] text-slate-500">
+        <p id="storageUsageLabel" class="mb-1">저장 데이터 확인 중...</p>
+        <p>사용 중인 Gemini 모델: <span id="geminiModelLabel" class="font-semibold text-indigo-600">gemini-3.5-flash-lite</span></p>
+    </footer>
+
     <!-- Script Logic -->
     <script>
         const HARDCODED_API_KEY = ""; 
-        const GEMINI_MODEL = "gemini-2.5-flash";
-        const OVERQUOTA_MSG = "api 사용량이 초과되었습니다. 추가 결제를 하거나, 내일 다시 시도해주세요. 저장된 단어장 사용은 제한없이 가능합니다";
+        const GEMINI_MODEL = "gemini-3.5-flash-lite";
+        const SPEECH_RATE_KEY = 'spell_speech_rate_v1';
+        const DEFAULT_SPEECH_RATE = 0.75;
+        const OVERQUOTA_MSG = "API Key 한도를 초과했습니다. 잠시 후 다시 시도해 주세요.";
+        const UNAVAILABLE_MSG = "Google 서비스가 과부하 상태입니다. 잠시 후 다시 시도해 주세요.";
 
         let editingWordIdx = -1;
 
         let wordsData = [];
         let currentIndex = 0;
+        let lastTestSubmitAt = 0;
+        let testEnterHeld = false;
+        let spellTestAudioTimer = null;
+        let spellTestAudioRunId = 0;
         let currentDeckId = null;
         let currentDeckTitle = "";
 
@@ -407,21 +588,319 @@
         let userAnswers = [];
         let incorrectWords = [];
 
-        // Current dictionary lookup cached word object
+        // Vocabulary multiple-choice quiz state
+        let vocabularyQuizWords = [];
+        let vocabularyQuizIndex = 0;
+        let vocabularyQuizAnswers = [];
+        let vocabularyQuizAnswered = false;
+        let vocabularyQuizIncorrectWords = [];
+
+        // Current dictionary lookup result (kept in memory only; never persisted)
         let currentDictWord = null;
 
-        // Saved deck read-aloud state. SpeechSynthesis.resume() continues a pause;
-        // Stop cancels the queue and resets the cursor so Play starts at the beginning.
-        let savedDeckAudioWords = [];
-        let savedDeckAudioIndex = 0;
-        let savedDeckAudioPartIndex = 0;
-        let savedDeckAudioStopped = true;
-        let savedDeckAudioPaused = false;
-        let savedDeckAudioSession = 0;
+        // Preserve the uploaded image in IndexedDB so a canceled/reloaded page can retry recognition.
+        initializeSpeechRateControls();
+
+        const PENDING_IMAGE_DB_NAME = 'spell_image_progress_db';
+        const PENDING_IMAGE_STORE_NAME = 'jobs';
+        const PENDING_IMAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+        let imageRecognitionActive = false;
+        let bookReadingText = '';
+        let bookReadingRunId = 0;
+        let bookReadingChunks = [];
+        let bookReadingChunkIndex = 0;
+        let bookReadingPaused = false;
+
+        // Cache is used only by AI autofill; dictionary search results are never cached.
+        const WORD_INFO_CACHE_KEY = 'spell_word_info_cache_v1';
+        const WORD_INFO_CACHE_LIMIT = 300;
+
+        function normalizeWordCacheKey(word) {
+            return String(word || '').trim().toLocaleLowerCase();
+        }
+
+        function getCachedWordInfo(word) {
+            const key = normalizeWordCacheKey(word);
+            if (!key) return null;
+            try {
+                const cache = JSON.parse(localStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
+                return cache[key] || null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function saveCachedWordInfo(word, data) {
+            const key = normalizeWordCacheKey(word);
+            if (!key || !data || typeof data !== 'object') return;
+            try {
+                const cache = JSON.parse(localStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
+                // Reinsert the key at the end so the oldest entries can be removed first.
+                delete cache[key];
+                cache[key] = {
+                    word: data.word || word,
+                    phonetic: data.phonetic || '',
+                    meaning: data.meaning || '',
+                    exampleEn: data.exampleEn || '',
+                    exampleKo: data.exampleKo || '',
+                    partOfSpeech: data.partOfSpeech || ''
+                };
+                const keys = Object.keys(cache);
+                while (keys.length > WORD_INFO_CACHE_LIMIT) {
+                    delete cache[keys.shift()];
+                }
+                localStorage.setItem(WORD_INFO_CACHE_KEY, JSON.stringify(cache));
+                updateStorageUsageDisplay();
+            } catch (e) {
+                // Cache is optional; app features should continue if storage is full or unavailable.
+            }
+        }
+
+        function fillWordInfoFields(data) {
+            if (data.phonetic) document.getElementById('editPhoneticInput').value = data.phonetic;
+            if (data.meaning) document.getElementById('editMeaningInput').value = data.meaning;
+            if (data.exampleEn) document.getElementById('editExampleEnInput').value = data.exampleEn;
+            if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
+        }
+
+        function showDictionaryWord(data, fallbackWord, saveToHistory = false) {
+            currentDictWord = data;
+            if (saveToHistory) saveDictionaryHistory(fallbackWord, data);
+            const isKoreanQuery = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(fallbackWord);
+            const meaningLabel = document.getElementById('dictResMeaningLabel');
+            if (meaningLabel) meaningLabel.innerText = '의미 (Meaning)';
+            document.getElementById('dictResWord').innerText = data.word || fallbackWord;
+            document.getElementById('dictResPhonetic').innerText = data.phonetic || "[ - ]";
+            document.getElementById('dictResMeaning').innerText = data.meaning || (isKoreanQuery ? (data.word || fallbackWord) : "뜻 없음");
+            document.getElementById('dictResExampleEn').innerText = data.exampleEn || fallbackWord;
+            document.getElementById('dictResExampleKo').innerText = data.exampleKo || "";
+            document.getElementById('dictLoading').classList.add('hidden');
+            document.getElementById('dictResultArea').classList.remove('hidden');
+            document.getElementById('dictAddAction').classList.remove('hidden');
+
+            const imageSection = document.getElementById('dictImageSection');
+            const isNoun = /noun|명사/i.test(String(data.partOfSpeech || ''));
+            imageSection.classList.toggle('hidden', !isNoun);
+            document.getElementById('dictImageResult').classList.add('hidden');
+            document.getElementById('dictResImage').classList.add('hidden');
+            document.getElementById('dictResImage').removeAttribute('src');
+            document.getElementById('dictImageAttribution').innerText = '';
+            document.getElementById('dictImageSearchBtn').disabled = false;
+        }
+
+        async function searchDictionaryImage() {
+            const searchTerm = String(currentDictWord?.word || '').trim();
+            if (!searchTerm) return;
+
+            const section = document.getElementById('dictImageResult');
+            const img = document.getElementById('dictResImage');
+            const status = document.getElementById('dictImageStatus');
+            const attribution = document.getElementById('dictImageAttribution');
+            const button = document.getElementById('dictImageSearchBtn');
+
+            section.classList.remove('hidden');
+            img.classList.add('hidden');
+            img.removeAttribute('src');
+            attribution.innerText = '';
+            status.innerText = 'Wikimedia에서 이미지를 검색 중...';
+            status.classList.remove('hidden');
+            button.disabled = true;
+            button.classList.add('opacity-50');
+
+            try {
+                const params = new URLSearchParams({
+                    action: 'query',
+                    generator: 'search',
+                    gsrsearch: `filetype:bitmap ${searchTerm}`,
+                    gsrnamespace: '6',
+                    gsrlimit: '3',
+                    prop: 'imageinfo',
+                    iiprop: 'url',
+                    iiurlwidth: '400',
+                    format: 'json',
+                    origin: '*'
+                });
+                // Keep the request small and fail quickly instead of leaving the UI spinning.
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 7000);
+                let response;
+                try {
+                    response = await fetch('https://commons.wikimedia.org/w/api.php?' + params.toString(), { signal: controller.signal });
+                } finally {
+                    clearTimeout(timeoutId);
+                }
+                if (!response.ok) throw new Error('Wikimedia image search failed');
+                const result = await response.json();
+                const pages = Object.values(result.query?.pages || {});
+                const match = pages.find(page => page.imageinfo?.[0]?.thumburl || page.imageinfo?.[0]?.url);
+                const imageInfo = match?.imageinfo?.[0];
+                if (!imageInfo) {
+                    status.innerText = '이미지를 찾을 수 없습니다.';
+                    return;
+                }
+
+                const imageUrl = imageInfo.thumburl || imageInfo.url;
+                img.onload = () => {
+                    img.classList.remove('hidden');
+                    status.classList.add('hidden');
+                };
+                img.onerror = () => {
+                    img.classList.add('hidden');
+                    status.innerText = '이미지를 불러올 수 없습니다. 다른 이미지를 검색해 주세요.';
+                    status.classList.remove('hidden');
+                };
+                img.alt = searchTerm + ' 이미지';
+                // Show the image element before assigning the URL, then handle both normal
+                // load events and images that complete immediately in WebView/browser caches.
+                img.classList.remove('hidden');
+                img.src = imageUrl;
+                attribution.innerText = '이미지 출처: Wikimedia Commons · ' + String(match.title || '').replace(/^File:/, '');
+                if (img.complete && img.naturalWidth > 0) {
+                    img.classList.remove('hidden');
+                    status.classList.add('hidden');
+                }
+            } catch (error) {
+                console.warn('Wikimedia 이미지 검색 실패:', error);
+                status.innerText = error.name === 'AbortError'
+                    ? '검색 시간이 길어져 중단했습니다. 다시 눌러 주세요.'
+                    : '이미지 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+            } finally {
+                button.disabled = false;
+                button.classList.remove('opacity-50');
+            }
+        }
 
         window.addEventListener('DOMContentLoaded', () => {
             updateApiKeyUI();
+            updateStorageUsageDisplay();
+            updateStudyNameUI();
+            const modelLabel = document.getElementById('geminiModelLabel');
+            if (modelLabel) modelLabel.textContent = GEMINI_MODEL;
+            showPendingImageRecovery();
         });
+
+
+        function openPendingImageDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(PENDING_IMAGE_DB_NAME, 1);
+                request.onupgradeneeded = () => {
+                    const db = request.result;
+                    if (!db.objectStoreNames.contains(PENDING_IMAGE_STORE_NAME)) {
+                        db.createObjectStore(PENDING_IMAGE_STORE_NAME);
+                    }
+                };
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error || new Error('이미지 저장소를 열 수 없습니다.'));
+            });
+        }
+
+        async function savePendingImageJob(job) {
+            const db = await openPendingImageDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(PENDING_IMAGE_STORE_NAME, 'readwrite');
+                tx.objectStore(PENDING_IMAGE_STORE_NAME).put(job, 'pending');
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onerror = () => { db.close(); reject(tx.error || new Error('이미지 저장에 실패했습니다.')); };
+                tx.onabort = () => { db.close(); reject(tx.error || new Error('이미지 저장이 취소되었습니다.')); };
+            });
+        }
+
+        async function getPendingImageJob() {
+            const db = await openPendingImageDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(PENDING_IMAGE_STORE_NAME, 'readonly');
+                const request = tx.objectStore(PENDING_IMAGE_STORE_NAME).get('pending');
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error || new Error('저장된 이미지 상태를 읽을 수 없습니다.'));
+                tx.oncomplete = () => db.close();
+                tx.onerror = () => { db.close(); reject(tx.error || new Error('저장된 이미지 상태를 읽을 수 없습니다.')); };
+            });
+        }
+
+        async function clearPendingImageJob() {
+            const db = await openPendingImageDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(PENDING_IMAGE_STORE_NAME, 'readwrite');
+                tx.objectStore(PENDING_IMAGE_STORE_NAME).delete('pending');
+                tx.oncomplete = () => { db.close(); resolve(); };
+                tx.onerror = () => { db.close(); reject(tx.error || new Error('저장된 이미지 상태를 삭제할 수 없습니다.')); };
+                tx.onabort = () => { db.close(); reject(tx.error || new Error('저장된 이미지 상태 삭제가 취소되었습니다.')); };
+            });
+        }
+
+        async function removeExpiredPendingImageJob() {
+            const job = await getPendingImageJob();
+            if (job) {
+                const savedAt = Date.parse(job.savedAt || '');
+                if (!Number.isFinite(savedAt) || Date.now() - savedAt > PENDING_IMAGE_MAX_AGE_MS) {
+                    await clearPendingImageJob();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        async function showPendingImageRecovery() {
+            const panel = document.getElementById('pendingImageRecovery');
+            if (!panel || imageRecognitionActive) {
+                if (panel && imageRecognitionActive) panel.classList.add('hidden');
+                return;
+            }
+            try {
+                await removeExpiredPendingImageJob();
+                const job = await getPendingImageJob();
+                panel.classList.toggle('hidden', !job);
+            } catch (err) {
+                console.warn('저장된 이미지 작업을 확인하지 못했습니다.', err);
+                panel.classList.add('hidden');
+            }
+        }
+
+        async function resumePendingImageRecognition() {
+            if (imageRecognitionActive) return;
+            let job;
+            try {
+                await removeExpiredPendingImageJob();
+                job = await getPendingImageJob();
+            } catch (err) {
+                alert('저장된 이미지 작업을 불러오지 못했습니다. 새로 사진을 선택해 주세요.');
+                return;
+            }
+            if (!job) {
+                await showPendingImageRecovery();
+                return;
+            }
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey || !apiKey.trim()) {
+                openApiKeyModal();
+                return;
+            }
+
+            imageRecognitionActive = true;
+            document.getElementById('pendingImageRecovery').classList.add('hidden');
+            showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
+            try {
+                await extractWordsFromImage(job.base64Data, job.mimeType, apiKey);
+            } catch (err) {
+                console.error('이미지 인식 재시도 실패:', err);
+                backToUpload();
+            } finally {
+                imageRecognitionActive = false;
+                await showPendingImageRecovery();
+            }
+        }
+
+        async function discardPendingImageRecognition() {
+            if (imageRecognitionActive) return;
+            if (!confirm('저장된 이미지 인식 작업을 삭제할까요?')) return;
+            try {
+                await clearPendingImageJob();
+                await showPendingImageRecovery();
+            } catch (err) {
+                alert('저장된 작업을 삭제하지 못했습니다.');
+            }
+        }
 
         function getSavedDecks() {
             try {
@@ -433,6 +912,35 @@
 
         function saveDecksToStorage(decks) {
             localStorage.setItem('saved_word_decks', JSON.stringify(decks));
+            updateStorageUsageDisplay();
+        }
+
+        // Estimate all localStorage usage (including decks, word cache, and API key).
+        // localStorage is typically stored as UTF-16; exact quota accounting varies by browser.
+        function updateStorageUsageDisplay() {
+            const label = document.getElementById('storageUsageLabel');
+            if (!label) return;
+
+            try {
+                let totalBytes = 0;
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    const value = localStorage.getItem(key) || '';
+                    totalBytes += (String(key).length + value.length) * 2;
+                }
+
+                let formatted;
+                if (totalBytes < 1024) {
+                    formatted = totalBytes + ' B';
+                } else if (totalBytes < 1024 * 1024) {
+                    formatted = (totalBytes / 1024).toFixed(1) + ' KB';
+                } else {
+                    formatted = (totalBytes / (1024 * 1024)).toFixed(2) + ' MB';
+                }
+                label.textContent = '저장 용량 약 ' + formatted;
+            } catch (e) {
+                label.textContent = '저장 용량을 확인할 수 없습니다.';
+            }
         }
 
         function saveDeckToHistory(title, words, specificDeckId = null) {
@@ -470,20 +978,144 @@
                 currentDeckTitle = defaultTitle;
             }
 
-            // Enforce max 20 decks limit (including favorites)
-            if (decks.length > 20) {
-                let favorites = decks.filter(d => d.isFavorite);
-                let nonFavorites = decks.filter(d => !d.isFavorite);
-                
-                if (favorites.length >= 20) {
-                    decks = favorites.slice(0, 20);
-                } else {
-                    const slotsLeft = 20 - favorites.length;
-                    decks = [...favorites, ...nonFavorites.slice(0, slotsLeft)];
-                }
+            // Keep up to 100 saved decks total, including favorites; favorites take priority.
+            if (decks.length > MAX_SAVED_DECKS) {
+                const favorites = decks.filter(d => d.isFavorite);
+                const nonFavorites = decks.filter(d => !d.isFavorite);
+                decks = favorites.length >= MAX_SAVED_DECKS
+                    ? favorites.slice(0, MAX_SAVED_DECKS)
+                    : [...favorites, ...nonFavorites.slice(0, MAX_SAVED_DECKS - favorites.length)];
             }
 
             saveDecksToStorage(decks);
+        }
+
+        const DAILY_WORDS_STORAGE_KEY = 'spell_daily_words_v1';
+        const MAX_SAVED_DECKS = 100;
+
+        function getLocalDateKey(date = new Date()) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function loadDailyWordsRecord() {
+            try {
+                const record = JSON.parse(localStorage.getItem(DAILY_WORDS_STORAGE_KEY) || 'null');
+                return record && record.date === getLocalDateKey() && Array.isArray(record.words) && record.words.length === 10
+                    ? record
+                    : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function startDailyWordStudy() {
+            const todayRecord = loadDailyWordsRecord();
+            if (todayRecord) {
+                let decks = getSavedDecks();
+                let deck = decks.find(item => item.id === todayRecord.deckId);
+                if (!deck) {
+                    // If the user removed the deck from the archive, restore today's exact saved set.
+                    wordsData = [...todayRecord.words];
+                    currentDeckId = null;
+                    currentDeckTitle = `오늘의 단어 ${todayRecord.date}`;
+                    saveDeckToHistory(currentDeckTitle, wordsData);
+                    todayRecord.deckId = currentDeckId;
+                    try {
+                        localStorage.setItem(DAILY_WORDS_STORAGE_KEY, JSON.stringify(todayRecord));
+                    } catch (e) {
+                        console.warn('오늘의 단어 기록을 갱신하지 못했습니다.', e);
+                    }
+                } else {
+                    wordsData = [...deck.words];
+                    currentDeckId = deck.id;
+                    currentDeckTitle = deck.title;
+                }
+                currentIndex = 0;
+                enterRecognizedWordsStudyMode();
+                return;
+            }
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey || !apiKey.trim()) {
+                alert('오늘의 단어를 생성하려면 먼저 상단의 API Key 설정에서 Gemini API Key를 입력해 주세요.');
+                openApiKeyModal();
+                return;
+            }
+
+            showLoading('국제학교 Grade 2 수준의 오늘의 영어 단어 10개를 만드는 중...');
+            try {
+                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create exactly 10 vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select 10 varied words each day, mostly high-utility words that a Grade 2 international-school student can understand and use; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning, exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation). In meaning, give the common Korean meanings in numbered lines, with the most common/representative meaning first; label the part of speech where useful, matching the concise format used for words extracted from an image. Do not add explanatory details or usage notes in parentheses. In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Return ONLY a valid JSON array with exactly 10 objects. Do not use markdown fences.';
+                const userQuery = 'Generate exactly 10 distinct vocabulary words suitable for a child in Grade 2 at an international school who has already completed English kindergarten. The words should be a clear step above basic everyday vocabulary and support classroom learning, reading comprehension, science, social studies, and expressive writing. Include the keys word, phonetic, stressPattern, meaning, exampleEn, exampleKo for every word. For meaning, use numbered lines for common Korean meanings, most common/representative meaning first, with part-of-speech labels where useful; do not add detailed explanations in parentheses. Match the meaning format used by image recognition. stressPattern must use hyphens between syllables and ALL CAPS for the stressed syllable.';
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: userQuery }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        generationConfig: { responseMimeType: 'application/json' }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    if (response.status === 503 || errText.includes('UNAVAILABLE')) {
+                        alert(UNAVAILABLE_MSG);
+                    } else if (response.status === 429 || errText.includes('RESOURCE_EXHAUSTED') || errText.toLowerCase().includes('quota')) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`API 오류 (${response.status}): ${errText}`);
+                    }
+                    throw new Error(`오늘의 단어 생성 API 오류 (${response.status})`);
+                }
+
+                const result = await response.json();
+                const responseText = result.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim() || '';
+                const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+                const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+                if (!Array.isArray(parsed) || parsed.length !== 10) {
+                    throw new Error('AI가 정확히 10개의 단어를 반환하지 않았습니다.');
+                }
+
+                const seen = new Set();
+                const generatedWords = parsed.map(item => ({
+                    word: String(item.word || '').trim(),
+                    phonetic: String(item.phonetic || '').trim(),
+                    stressPattern: String(item.stressPattern || '').trim(),
+                    meaning: String(item.meaning || '').trim(),
+                    exampleEn: String(item.exampleEn || '').trim(),
+                    exampleKo: String(item.exampleKo || '').trim()
+                })).filter(item => {
+                    const key = item.word.toLocaleLowerCase();
+                    if (!item.word || !item.meaning || !item.exampleEn || !item.exampleKo || seen.has(key)) return false;
+                    seen.add(key);
+                    return true;
+                });
+                if (generatedWords.length !== 10) {
+                    throw new Error('생성된 단어가 10개가 아니거나 필수 정보가 빠져 있습니다. 다시 시도해 주세요.');
+                }
+
+                wordsData = generatedWords;
+                currentIndex = 0;
+                currentDeckId = null;
+                currentDeckTitle = `오늘의 단어 ${getLocalDateKey()}`;
+                saveDeckToHistory(currentDeckTitle, wordsData);
+                const record = {
+                    date: getLocalDateKey(),
+                    deckId: currentDeckId,
+                    title: currentDeckTitle,
+                    words: [...wordsData]
+                };
+                localStorage.setItem(DAILY_WORDS_STORAGE_KEY, JSON.stringify(record));
+                enterRecognizedWordsStudyMode();
+            } catch (err) {
+                console.error('오늘의 단어 생성 오류:', err);
+                alert(err.message && err.message.startsWith('생성된 단어') ? err.message : '오늘의 단어를 만들지 못했습니다. API Key와 연결 상태를 확인한 뒤 다시 시도해 주세요.');
+                backToUpload();
+            }
         }
 
         function openHistoryModal() {
@@ -492,7 +1124,6 @@
         }
 
         function closeHistoryModal() {
-            stopSavedDeckAudio();
             document.getElementById('historyModal').classList.add('hidden');
         }
 
@@ -527,145 +1158,32 @@
                 const starColorClass = deck.isFavorite ? 'text-amber-400' : 'text-slate-300 hover:text-amber-300';
 
                 const item = document.createElement('div');
-                item.className = `bg-slate-50 border ${deck.isFavorite ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'} rounded-2xl p-3 flex items-center justify-between transition`;
+                item.className = `bg-slate-50 border ${deck.isFavorite ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'} rounded-2xl p-3 flex flex-col gap-2 transition`;
                 item.innerHTML = `
                     <div class="cursor-pointer flex-1 min-w-0 mr-2" onclick="loadDeckFromHistory(${deck.id})">
-                        <div class="flex items-center gap-1.5">
-                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 ${starColorClass}" title="즐겨찾기">
+                        <div class="flex items-center gap-1.5 min-w-0">
+                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 shrink-0 ${starColorClass}" title="즐겨찾기">
                                 <i class="fa-solid fa-star"></i>
                             </button>
-                            <h4 class="font-bold text-sm text-slate-800 truncate">${deck.title}</h4>
+                            <h4 class="flex-1 min-w-0 font-bold text-sm text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${deck.title}</h4>
                             <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
                         </div>
                         <p class="text-[11px] text-slate-500 mt-1 truncate font-medium"><span class="text-slate-400">포함 단어:</span> ${sampleWords}</p>
                         <p class="text-[10px] text-slate-400 mt-0.5">${dateTimeDisplay}</p>
                     </div>
-                    <div class="flex items-center gap-1 shrink-0">
-                        <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
+                    <div class="flex items-center justify-end gap-1 shrink-0 pt-2 border-t border-slate-200/70">
+                        <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
                             <i class="fa-solid fa-pen text-xs"></i>
                         </button>
-                        <button onclick="event.stopPropagation(); startSavedDeckAudio(${deck.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl transition shadow-sm">
-                            한번에 읽기
-                        </button>
-                        <button onclick="event.stopPropagation(); loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl transition shadow-sm">
-                            학습하기
-                        </button>
-                        <button onclick="event.stopPropagation(); deleteDeckFromHistory(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition" title="삭제">
+                        <button onclick="loadDeckFromHistory(${deck.id}, 'words')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm">단어 학습</button>
+                        <button onclick="loadDeckFromHistory(${deck.id}, 'book')" ${deck.bookText ? '' : 'disabled title="저장된 본문이 없습니다"'} class="bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm">한번에 읽기</button>
+                        <button onclick="event.stopPropagation(); deleteDeckFromHistory(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition" title="삭제">
                             <i class="fa-solid fa-trash-can text-xs"></i>
                         </button>
                     </div>
                 `;
                 container.appendChild(item);
             });
-        }
-
-        function startSavedDeckAudio(id) {
-            const decks = getSavedDecks();
-            const deck = decks.find(d => d.id === id);
-            if (!deck || !Array.isArray(deck.words) || deck.words.length === 0) {
-                alert("읽을 단어가 없습니다.");
-                return;
-            }
-            if (!('speechSynthesis' in window)) {
-                alert("이 브라우저에서는 음성 읽기를 지원하지 않습니다.");
-                return;
-            }
-
-            window.speechSynthesis.cancel();
-            savedDeckAudioSession++;
-            savedDeckAudioWords = deck.words.map(w => ({
-                word: String(w.word || "").trim(),
-                exampleEn: String(w.exampleEn || "").trim()
-            })).filter(w => w.word || w.exampleEn);
-            savedDeckAudioIndex = 0;
-            savedDeckAudioPartIndex = 0;
-            savedDeckAudioStopped = false;
-            savedDeckAudioPaused = false;
-            document.getElementById('savedDeckAudioTitle').innerText = `${deck.title} · 전체 ${savedDeckAudioWords.length}개 읽기`;
-            document.getElementById('savedDeckAudioPanel').classList.remove('hidden');
-            speakSavedDeckAudioItem(savedDeckAudioSession);
-        }
-
-        function speakSavedDeckAudioItem(session) {
-            if (session !== savedDeckAudioSession || savedDeckAudioStopped || savedDeckAudioPaused) return;
-            if (savedDeckAudioIndex >= savedDeckAudioWords.length) {
-                savedDeckAudioStopped = true;
-                savedDeckAudioPaused = false;
-                document.getElementById('savedDeckAudioTitle').innerText = "Read aloud complete";
-                return;
-            }
-
-            const item = savedDeckAudioWords[savedDeckAudioIndex];
-            const parts = [item.word, item.exampleEn].filter(Boolean);
-            if (savedDeckAudioPartIndex >= parts.length) {
-                savedDeckAudioIndex++;
-                savedDeckAudioPartIndex = 0;
-                speakSavedDeckAudioItem(session);
-                return;
-            }
-
-            const utterance = new SpeechSynthesisUtterance(parts[savedDeckAudioPartIndex]);
-            utterance.lang = 'en-US';
-            utterance.rate = 0.9;
-            utterance.onend = () => {
-                if (session !== savedDeckAudioSession || savedDeckAudioStopped || savedDeckAudioPaused) return;
-                savedDeckAudioPartIndex++;
-                speakSavedDeckAudioItem(session);
-            };
-            utterance.onerror = (event) => {
-                if (session !== savedDeckAudioSession || savedDeckAudioStopped || savedDeckAudioPaused || event.error === 'canceled' || event.error === 'interrupted') return;
-                // Skip a segment that the browser cannot speak, then continue the deck.
-                savedDeckAudioPartIndex++;
-                speakSavedDeckAudioItem(session);
-            };
-            window.speechSynthesis.speak(utterance);
-        }
-
-        function resumeSavedDeckAudio() {
-            if (!('speechSynthesis' in window) || savedDeckAudioWords.length === 0) return;
-
-            // Stop/completion resets playback to the first item.
-            if (savedDeckAudioStopped) {
-                window.speechSynthesis.cancel();
-                savedDeckAudioIndex = 0;
-                savedDeckAudioPartIndex = 0;
-                savedDeckAudioStopped = false;
-                savedDeckAudioPaused = false;
-                savedDeckAudioSession++;
-                speakSavedDeckAudioItem(savedDeckAudioSession);
-                return;
-            }
-
-            if (savedDeckAudioPaused) {
-                // On some Android speech engines resume() can return without audio.
-                // Restart the current segment as a reliable fallback. The item/part cursor
-                // is intentionally preserved so reading continues at the paused word/example.
-                const session = ++savedDeckAudioSession;
-                savedDeckAudioPaused = false;
-                window.speechSynthesis.cancel();
-                // Let cancel settle before putting a new utterance on the speech queue.
-                setTimeout(() => {
-                    if (session !== savedDeckAudioSession || savedDeckAudioPaused || savedDeckAudioStopped) return;
-                    speakSavedDeckAudioItem(session);
-                }, 80);
-            }
-        }
-
-        function pauseSavedDeckAudio() {
-            if (!('speechSynthesis' in window) || savedDeckAudioStopped || savedDeckAudioPaused) return;
-            savedDeckAudioPaused = true;
-            window.speechSynthesis.pause();
-        }
-
-        function stopSavedDeckAudio() {
-            savedDeckAudioSession++;
-            savedDeckAudioStopped = true;
-            savedDeckAudioPaused = false;
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            savedDeckAudioIndex = 0;
-            savedDeckAudioPartIndex = 0;
-            const title = document.getElementById('savedDeckAudioTitle');
-            if (title) title.innerText = 'Stopped';
         }
 
         function toggleFavoriteDeck(id) {
@@ -694,20 +1212,21 @@
             }
         }
 
-        function loadDeckFromHistory(id) {
-            // Hide the read-aloud controls when switching into study mode.
-            document.getElementById('savedDeckAudioPanel').classList.add('hidden');
-            stopSavedDeckAudio();
-            const decks = getSavedDecks();
-            const selected = decks.find(d => d.id === id);
-            if (selected && selected.words && selected.words.length > 0) {
-                wordsData = [...selected.words];
-                currentDeckId = selected.id;
-                currentDeckTitle = selected.title;
-                currentIndex = 0;
-                closeHistoryModal();
-                showCardView();
-            }
+        function loadDeckFromHistory(id, mode = 'words') {
+            const selected = getSavedDecks().find(d => d.id === id);
+            if (!selected) return;
+            wordsData = Array.isArray(selected.words) ? [...selected.words] : [];
+            currentDeckId = selected.id; currentDeckTitle = selected.title; currentIndex = 0;
+            closeHistoryModal();
+            if (mode === 'book') {
+                bookReadingText = String(selected.bookText || '');
+                if (!bookReadingText.trim()) { alert('이 보관함 항목에는 저장된 본문이 없습니다. 사진을 다시 인식해 주세요.'); return; }
+                stopBookReading();
+                document.getElementById('bookReadingText').textContent = bookReadingText;
+                document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요 · 처음부터 읽기 또는 이어 읽기를 누르세요.';
+                ['uploadView','loadingView','cardView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => document.getElementById(id).classList.add('hidden'));
+                document.getElementById('bookReadingView').classList.remove('hidden'); document.getElementById('bookReadingView').classList.add('flex');
+            } else { showCardView(); }
         }
 
         function deleteDeckFromHistory(id) {
@@ -717,15 +1236,86 @@
             renderHistoryList();
         }
 
+        function deleteNonFavoriteDecks() {
+            const decks = getSavedDecks();
+            const nonFavoriteCount = decks.filter(deck => !deck.isFavorite).length;
+            if (nonFavoriteCount === 0) {
+                alert("삭제할 즐겨찾기 외 단어장이 없습니다.");
+                return;
+            }
+
+            const confirmed = confirm(`즐겨찾기하지 않은 단어장 ${nonFavoriteCount}개를 모두 삭제할까요? 즐겨찾기 단어장은 유지됩니다.`);
+            if (!confirmed) return;
+
+            const keptDecks = decks.filter(deck => deck.isFavorite);
+            const currentDeckWasDeleted = currentDeckId !== null && !keptDecks.some(deck => deck.id === currentDeckId);
+            saveDecksToStorage(keptDecks);
+
+            if (currentDeckWasDeleted) {
+                currentDeckId = null;
+                currentDeckTitle = "";
+            }
+
+            renderHistoryList();
+            alert(`완료: 즐겨찾기 단어장 ${keptDecks.length}개를 유지하고, ${nonFavoriteCount}개를 삭제했습니다.`);
+        }
+
         function backToUpload() {
             document.getElementById('uploadView').classList.remove('hidden');
             document.getElementById('loadingView').classList.add('hidden');
             document.getElementById('cardView').classList.add('hidden');
             document.getElementById('testView').classList.add('hidden');
             document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            const choiceView = document.getElementById('imageModeChoiceView');
+            if (choiceView) { choiceView.classList.add('hidden'); choiceView.classList.remove('flex'); }
+            const bookView = document.getElementById('bookReadingView');
+            if (bookView) { bookView.classList.add('hidden'); bookView.classList.remove('flex'); }
             document.getElementById('imageInput').value = '';
             currentDeckId = null;
             currentDeckTitle = "";
+        }
+
+        const STUDY_NAME_STORAGE_KEY = 'spell_study_user_name';
+
+        function getStudyName() {
+            return (localStorage.getItem(STUDY_NAME_STORAGE_KEY) || '').trim();
+        }
+
+        function updateStudyNameUI() {
+            const name = getStudyName();
+            const displayTitle = name ? name + "'s Word Study" : "who's word study";
+            const title = document.getElementById('studyTitleName');
+            const buttonText = document.getElementById('studyNameBtnText');
+            if (title) title.textContent = displayTitle;
+            if (buttonText) buttonText.textContent = name ? '이름 입력됨' : '이름 입력 필요';
+            document.title = displayTitle;
+        }
+
+        function openNameModal() {
+            const input = document.getElementById('studyNameInput');
+            if (input) {
+                input.value = localStorage.getItem(STUDY_NAME_STORAGE_KEY) || '';
+                document.getElementById('nameModal').classList.remove('hidden');
+                input.focus();
+            }
+        }
+
+        function closeNameModal() {
+            document.getElementById('nameModal').classList.add('hidden');
+        }
+
+        function saveStudyName() {
+            const input = document.getElementById('studyNameInput');
+            const name = String(input ? input.value : '').trim();
+            if (name) {
+                localStorage.setItem(STUDY_NAME_STORAGE_KEY, name);
+            } else {
+                localStorage.removeItem(STUDY_NAME_STORAGE_KEY);
+            }
+            updateStudyNameUI();
+            closeNameModal();
         }
 
         function getStoredApiKey() {
@@ -764,7 +1354,172 @@
                 localStorage.removeItem('gemini_api_key');
             }
             updateApiKeyUI();
+            updateStorageUsageDisplay();
             closeApiKeyModal();
+        }
+
+        const DICTIONARY_HISTORY_KEY = 'spell_dictionary_search_history_v1';
+        const DICTIONARY_HISTORY_LIMIT = 100;
+        const DICTIONARY_FAVORITES_KEY = 'spell_dictionary_favorites_v1';
+
+        function getDictionaryHistory() {
+            try {
+                const value = JSON.parse(localStorage.getItem(DICTIONARY_HISTORY_KEY) || '[]');
+                return Array.isArray(value) ? value : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function getDictionaryFavorites() {
+            try {
+                const value = JSON.parse(localStorage.getItem(DICTIONARY_FAVORITES_KEY) || '[]');
+                return Array.isArray(value) ? value : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveDictionaryFavorites(favorites) {
+            try {
+                localStorage.setItem(DICTIONARY_FAVORITES_KEY, JSON.stringify(favorites));
+            } catch (e) {
+                console.warn('사전 즐겨찾기를 저장하지 못했습니다.', e);
+            }
+        }
+
+        function toggleDictionaryFavorite(id) {
+            const entry = getDictionaryHistory().find(item => item.id === id)
+                || getDictionaryFavorites().find(item => item.id === id);
+            if (!entry) return;
+            let favorites = getDictionaryFavorites();
+            const existingIndex = favorites.findIndex(item => item.id === id);
+            if (existingIndex >= 0) {
+                favorites.splice(existingIndex, 1);
+            } else {
+                favorites.unshift({ ...entry, data: { ...entry.data } });
+            }
+            saveDictionaryFavorites(favorites);
+            renderDictionaryHistory();
+        }
+
+        function saveDictionaryHistory(query, data) {
+            const cleanQuery = String(query || '').trim();
+            if (!cleanQuery || !data || typeof data !== 'object') return;
+            const history = getDictionaryHistory();
+            const entry = {
+                id: Date.now(),
+                query: cleanQuery,
+                data: {
+                    word: data.word || cleanQuery,
+                    phonetic: data.phonetic || '',
+                    partOfSpeech: data.partOfSpeech || '',
+                    meaning: data.meaning || '',
+                    exampleEn: data.exampleEn || '',
+                    exampleKo: data.exampleKo || ''
+                },
+                searchedAt: new Date().toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })
+            };
+            // Keep the latest search for a term at the top and cap storage usage.
+            const normalized = cleanQuery.toLocaleLowerCase();
+            const updated = [entry, ...history.filter(item => String(item.query || '').trim().toLocaleLowerCase() !== normalized)]
+                .slice(0, DICTIONARY_HISTORY_LIMIT);
+            try {
+                localStorage.setItem(DICTIONARY_HISTORY_KEY, JSON.stringify(updated));
+            } catch (e) {
+                console.warn('사전 검색 기록을 저장하지 못했습니다.', e);
+            }
+            renderDictionaryHistory();
+        }
+
+        function renderDictionaryHistory() {
+            const listEl = document.getElementById('dictHistoryList');
+            const countEl = document.getElementById('dictHistoryCount');
+            if (!listEl || !countEl) return;
+            const history = getDictionaryHistory();
+            const favorites = getDictionaryFavorites();
+            const titleEl = document.getElementById('dictHistoryTitle');
+            if (titleEl) titleEl.textContent = '최근 사전 검색';
+            listEl.replaceChildren();
+
+            // Show favorites first and display each word only once, even if it
+            // appears multiple times in favorites or search history.
+            const entries = [];
+            const seenWords = new Set();
+            const addUniqueWords = (items) => {
+                items.forEach(item => {
+                    const word = String(item?.data?.word || item?.query || '').trim();
+                    const normalizedWord = word.toLocaleLowerCase();
+                    if (!normalizedWord || seenWords.has(normalizedWord)) return;
+                    seenWords.add(normalizedWord);
+                    entries.push(item);
+                });
+            };
+            addUniqueWords(favorites);
+            addUniqueWords(history);
+            countEl.textContent = String(entries.length);
+
+            if (entries.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'text-xs text-slate-400 text-center py-4';
+                empty.textContent = '검색 기록이 없습니다. 단어를 검색하면 자동으로 저장됩니다.';
+                listEl.appendChild(empty);
+                return;
+            }
+
+            entries.forEach(entry => {
+                const row = document.createElement('div');
+                row.className = 'flex items-start gap-1 rounded-xl hover:bg-indigo-50 border border-transparent hover:border-indigo-100 p-1';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'flex-1 min-w-0 text-left p-1';
+                button.addEventListener('click', () => loadDictionaryHistoryEntry(entry.id));
+                const word = document.createElement('span');
+                word.className = 'block text-xs font-bold text-slate-800';
+                word.textContent = entry.data?.word || entry.query || '(단어)';
+                const meaning = document.createElement('span');
+                meaning.className = 'block text-[11px] text-slate-600 whitespace-pre-line';
+                meaning.textContent = entry.data?.meaning || '뜻 없음';
+                const date = document.createElement('span');
+                date.className = 'block text-[10px] text-slate-400 mt-0.5';
+                date.textContent = entry.searchedAt || '';
+                button.append(word, meaning, date);
+
+                const star = document.createElement('button');
+                star.type = 'button';
+                const isFavorite = favorites.some(item => item.id === entry.id);
+                star.className = 'shrink-0 p-2 rounded-lg hover:bg-amber-50 ' + (isFavorite ? 'text-amber-500' : 'text-slate-300');
+                star.title = isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가';
+                star.setAttribute('aria-label', star.title);
+                star.innerHTML = '<i class="fa-solid fa-star"></i>';
+                star.addEventListener('click', () => toggleDictionaryFavorite(entry.id));
+                row.append(button, star);
+                listEl.appendChild(row);
+            });
+        }
+
+        function toggleDictionaryHistory(forceOpen) {
+            const panel = document.getElementById('dictHistoryPanel');
+            if (!panel) return;
+            const shouldOpen = typeof forceOpen === 'boolean' ? forceOpen : panel.classList.contains('hidden');
+            if (shouldOpen) renderDictionaryHistory();
+            panel.classList.toggle('hidden', !shouldOpen);
+        }
+
+        function loadDictionaryHistoryEntry(id) {
+            const entry = getDictionaryHistory().find(item => item.id === id)
+                || getDictionaryFavorites().find(item => item.id === id);
+            if (!entry || !entry.data) return;
+            document.getElementById('dictQueryInput').value = entry.query || entry.data.word || '';
+            toggleDictionaryHistory(false);
+            showDictionaryWord(entry.data, entry.query || entry.data.word, false);
+        }
+
+        function clearDictionaryHistory() {
+            if (!confirm('검색 기록을 삭제할까요? 즐겨찾기한 단어는 삭제되지 않습니다.')) return;
+            // Favorites are stored separately and intentionally preserved.
+            localStorage.removeItem(DICTIONARY_HISTORY_KEY);
+            renderDictionaryHistory();
         }
 
         function openDictionaryModal() {
@@ -772,6 +1527,8 @@
             document.getElementById('dictLoading').classList.add('hidden');
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
+            toggleDictionaryHistory(false);
+            renderDictionaryHistory();
             document.getElementById('dictionaryModal').classList.remove('hidden');
             document.getElementById('dictQueryInput').focus();
         }
@@ -780,9 +1537,14 @@
             document.getElementById('dictionaryModal').classList.add('hidden');
         }
 
+        // Dictionary searches always request fresh results and never read/write the word-info cache.
+        const DICTIONARY_REQUEST_INTERVAL_MS = 1500;
+        let lastDictionaryRequestAt = 0;
+        let dictionaryRequestInFlight = false;
+
         async function lookupDictionaryWord() {
             const query = document.getElementById('dictQueryInput').value.trim();
-            if (!query) return;
+            if (!query || dictionaryRequestInFlight) return;
 
             const apiKey = getStoredApiKey();
             if (!apiKey) {
@@ -790,19 +1552,43 @@
                 return;
             }
 
+            const elapsed = Date.now() - lastDictionaryRequestAt;
+            const waitMs = DICTIONARY_REQUEST_INTERVAL_MS - elapsed;
+            if (waitMs > 0) {
+                // Avoid a disruptive alert; briefly wait, then run the latest entered query.
+                dictionaryRequestInFlight = true;
+                const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
+                if (searchButton) searchButton.disabled = true;
+                setTimeout(() => {
+                    dictionaryRequestInFlight = false;
+                    if (searchButton) searchButton.disabled = false;
+                    lookupDictionaryWord();
+                }, waitMs);
+                return;
+            }
+
+            dictionaryRequestInFlight = true;
+            const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
+            if (searchButton) {
+                searchButton.disabled = true;
+                searchButton.classList.add('opacity-50');
+            }
             document.getElementById('dictLoading').classList.remove('hidden');
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
 
-            const systemPrompt = "You are a professional English dictionary and phonetic expert. Provide information for the requested word in valid JSON format only, with keys: word, phonetic (IPA format like [wɜːrd]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example). Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
-            const userQuery = `Provide dictionary information for the word: "${query}" in JSON format.`;
-
+            const isKoreanQuery = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(query);
+            const userQuery = isKoreanQuery
+                ? `Translate the Korean search term "${query}" into its most natural English word or phrase. Identify the part of speech. Return JSON only: {"word":"English translation","phonetic":"IPA pronunciation","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"numbered meanings, most common first, with part-of-speech labels","exampleEn":"short simple English sentence for the first meaning","exampleKo":"Korean translation of the example"}. Do not return a Korean meaning in the meaning field.`
+                : `Give a concise English dictionary entry for "${query}". Include the main common Korean meanings, not just one: put the most common meaning first, then other common meanings, each on a new numbered line and label its part of speech when useful. Avoid obscure/rare meanings. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"1. 대표 뜻 (품사)\\n2. 다른 주요 뜻 (품사)\\n3. 또 다른 주요 뜻 (품사)","exampleEn":"short simple English sentence using the first meaning","exampleKo":"Korean translation"}.`;
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] }
+                generationConfig: { responseMimeType: "application/json", maxOutputTokens: 150, temperature: 0.2 }
             };
 
             try {
+                // Record each attempted request, including failures, to avoid rapid retry loops.
+                lastDictionaryRequestAt = Date.now();
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -812,42 +1598,36 @@
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
-                    if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
+                    if (response.status === 503 || errorDetails.includes("UNAVAILABLE")) {
+                        alert(UNAVAILABLE_MSG);
+                    } else if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
                         alert(OVERQUOTA_MSG);
                     } else {
                         alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
                     }
-                    throw new Error(`API 요청 실패 (${response.status})`);
+                    return;
                 }
 
                 const result = await response.json();
-                let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (text) {
-                    // Robust JSON extraction using regex for both free and paid keys
-                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                    const jsonMatch = text.match(/\{[\s\S]*\}/);
-                    if (jsonMatch) {
-                        currentDictWord = JSON.parse(jsonMatch[0]);
-                    } else {
-                        currentDictWord = JSON.parse(text);
-                    }
-
-                    document.getElementById('dictResWord').innerText = currentDictWord.word || query;
-                    document.getElementById('dictResPhonetic').innerText = currentDictWord.phonetic || "[ - ]";
-                    document.getElementById('dictResMeaning').innerText = currentDictWord.meaning || "뜻 없음";
-                    document.getElementById('dictResExampleEn').innerText = currentDictWord.exampleEn || query;
-                    document.getElementById('dictResExampleKo').innerText = currentDictWord.exampleKo || "";
-
-                    document.getElementById('dictLoading').classList.add('hidden');
-                    document.getElementById('dictResultArea').classList.remove('hidden');
-                    document.getElementById('dictAddAction').classList.remove('hidden');
-                } else {
+                let responseText = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!responseText) {
                     alert("결과를 찾을 수 없습니다.");
+                    return;
                 }
+                responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+                const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+                currentDictWord = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+                saveDictionaryHistory(query, currentDictWord);
+                showDictionaryWord(currentDictWord, query);
             } catch (err) {
                 console.error(err);
-                alert("단어 정보를 해석하는 중 오류가 발생했습니다. 다시 시도해 주세요.");
+                alert("단어 정보를 해석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
             } finally {
+                dictionaryRequestInFlight = false;
+                if (searchButton) {
+                    searchButton.disabled = false;
+                    searchButton.classList.remove('opacity-50');
+                }
                 document.getElementById('dictLoading').classList.add('hidden');
             }
         }
@@ -880,25 +1660,197 @@
                 event.target.value = '';
                 return;
             }
+            if (imageRecognitionActive) return;
 
-            showLoading("Gemini AI로 이미지 분석 및 단어 추출 중...");
+            showLoading('사진을 인식하고 학습 모드를 준비하는 중...');
 
             const reader = new FileReader();
             reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
+                imageRecognitionActive = true;
                 try {
-                    await extractWordsFromImage(base64Data, file.type, apiKey);
+                    await clearPendingImageJob();
+                    await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
+                    await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
                 } catch (err) {
                     console.error("Extraction error:", err);
+                    alert('이미지 저장 또는 인식 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
                     backToUpload();
+                } finally {
+                    imageRecognitionActive = false;
+                    await showPendingImageRecovery();
+                    event.target.value = '';
                 }
+            };
+            reader.onerror = () => {
+                alert('이미지 파일을 읽지 못했습니다. 다시 선택해 주세요.');
+                backToUpload();
+                event.target.value = '';
             };
             reader.readAsDataURL(file);
         }
 
+        async function extractBookTextFromImage(base64Data, mimeType, apiKey) {
+            const prompt = 'You are an accurate OCR reader for an English learner. Transcribe the complete visible English reading passage from the provided textbook photo from top to bottom and left to right, preserving paragraph order and sentence punctuation. Include headings, dialogue, and captions that belong to the reading. Do not summarize, translate, explain, or turn the text into vocabulary entries. Exclude page numbers, exercise instructions unrelated to the passage, and decorative text. If some text is unclear, make the best faithful transcription without inventing missing sentences. Return plain text only.';
+            const payload = {
+                contents: [{ role: 'user', parts: [
+                    { text: 'Read and transcribe the full English passage in this photo in the original order, from beginning to end. Return only the extracted English text.' },
+                    { inlineData: { mimeType, data: base64Data } }
+                ]}],
+                systemInstruction: { parts: [{ text: prompt }] }
+            };
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errText = await response.text();
+                if (response.status === 503 || errText.includes('UNAVAILABLE')) alert(UNAVAILABLE_MSG);
+                else if (response.status === 429 || errText.includes('RESOURCE_EXHAUSTED') || errText.includes('quota')) alert(OVERQUOTA_MSG);
+                else alert(`책읽기모드 API 오류 (${response.status}): ${errText}`);
+                throw new Error('책읽기모드 API 오류');
+            }
+            const result = await response.json();
+            const extracted = result.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n').trim() || '';
+            return extracted.replace(/^```(?:text)?\s*/i, '').replace(/\s*```$/, '').trim();
+        }
+
+        function splitBookTextIntoChunks(text, maxLength = 180) {
+            const sentences = String(text || '').match(/[^.!?]+[.!?]+[”’"')\]]*|[^.!?]+$/g) || [String(text || '')];
+            const chunks = [];
+            let current = '';
+            for (const rawSentence of sentences) {
+                const sentence = rawSentence.trim();
+                if (!sentence) continue;
+                if ((current + ' ' + sentence).trim().length <= maxLength) {
+                    current = (current + ' ' + sentence).trim();
+                } else {
+                    if (current) chunks.push(current);
+                    if (sentence.length <= maxLength) current = sentence;
+                    else {
+                        const words = sentence.split(/\s+/);
+                        current = '';
+                        for (const word of words) {
+                            if ((current + ' ' + word).trim().length > maxLength && current) {
+                                chunks.push(current);
+                                current = word;
+                            } else current = (current + ' ' + word).trim();
+                        }
+                    }
+                }
+            }
+            if (current) chunks.push(current);
+            return chunks;
+        }
+
+        function playBookReading() {
+            if (!bookReadingText.trim()) {
+                document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.';
+                return;
+            }
+            if (!('speechSynthesis' in window)) {
+                document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.';
+                return;
+            }
+            // 일시정지 상태라면 현재 위치부터 이어 읽고, 정지/완료 상태라면 처음부터 재생한다.
+            if (bookReadingPaused) {
+                resumeBookReading();
+            } else {
+                startBookReading();
+            }
+        }
+
+        function startBookReading() {
+            if (!bookReadingText.trim()) return;
+            if (!('speechSynthesis' in window)) { document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.'; return; }
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            bookReadingRunId++;
+            bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+            bookReadingChunkIndex = 0;
+            bookReadingPaused = false;
+            speakNextBookChunk(bookReadingRunId);
+        }
+
+        function speakNextBookChunk(runId) {
+            if (runId !== bookReadingRunId || bookReadingPaused) return;
+            if (bookReadingChunkIndex >= bookReadingChunks.length) {
+                bookReadingPaused = false;
+                document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다. 재생을 누르면 처음부터 다시 읽습니다.';
+                return;
+            }
+            const utterance = new SpeechSynthesisUtterance(bookReadingChunks[bookReadingChunkIndex]);
+            utterance.lang = 'en-US';
+            utterance.rate = getSpeechRate();
+            utterance.onend = () => {
+                if (runId !== bookReadingRunId || bookReadingPaused) return;
+                bookReadingChunkIndex++;
+                speakNextBookChunk(runId);
+            };
+            utterance.onerror = (event) => {
+                if (runId === bookReadingRunId && event.error !== 'canceled' && event.error !== 'interrupted') {
+                    document.getElementById('bookReadingStatus').textContent = '읽기 중 오류가 발생했습니다. 재생을 눌러 다시 시도해 주세요.';
+                }
+            };
+            document.getElementById('bookReadingStatus').textContent = `읽는 중... ${Math.min(bookReadingChunkIndex + 1, bookReadingChunks.length)} / ${bookReadingChunks.length}`;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function pauseBookReading() {
+            if (!('speechSynthesis' in window)) return;
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+                bookReadingPaused = true;
+                window.speechSynthesis.pause();
+                document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 이어서 읽습니다.';
+            }
+        }
+
+        function resumeBookReading() {
+            if (!('speechSynthesis' in window)) return;
+            if (!bookReadingChunks.length) {
+                if (!bookReadingText.trim()) { document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.'; return; }
+                bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+                bookReadingChunkIndex = 0;
+                bookReadingRunId++;
+            }
+            if (bookReadingChunkIndex >= bookReadingChunks.length) {
+                startBookReading();
+                return;
+            }
+            const runId = bookReadingRunId;
+            window.speechSynthesis.resume();
+            bookReadingPaused = false;
+            document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
+            // 일부 모바일 브라우저는 resume()만으로 음성이 재개되지 않으므로, 재개 실패 시 현재 구간을 다시 시작한다.
+            setTimeout(() => {
+                if (runId !== bookReadingRunId || bookReadingPaused) return;
+                if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+                    speakNextBookChunk(runId);
+                }
+            }, 500);
+        }
+
+        function stopBookReading() {
+            bookReadingRunId++;
+            bookReadingPaused = false;
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            // 정지 후 재생은 항상 처음부터 시작하도록 위치를 초기화한다.
+            bookReadingChunkIndex = 0;
+            const status = document.getElementById('bookReadingStatus');
+            if (status) status.textContent = '읽기를 정지했어요. 재생을 누르면 처음부터 읽습니다.';
+        }
+
+        function exitBookReadingMode() {
+            stopBookReading();
+            document.getElementById('bookReadingView').classList.add('hidden');
+            document.getElementById('bookReadingView').classList.remove('flex');
+            backToUpload();
+        }
+
         async function extractWordsFromImage(base64Data, mimeType, apiKey) {
-            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), 1 simple example sentence in English (exampleEn), and its Korean translation (exampleKo). Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
-            const userQuery = "Extract all English words from this image along with phonetic transcriptions, meanings, and examples in JSON format.";
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (IPA pronunciation; for multi-word expressions, give a practical pronunciation for the full expression), meaning (common Korean meanings, most common first, numbered on separate lines, with part-of-speech labels where useful), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
+            const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic, meaning, exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
 
             const payload = {
                 contents: [
@@ -924,7 +1876,9 @@
 
                 if (!response.ok) {
                     const errText = await response.text();
-                    if (response.status === 429 || errText.includes("RESOURCE_EXHAUSTED") || errText.includes("quota")) {
+                    if (response.status === 503 || errText.includes("UNAVAILABLE")) {
+                        alert(UNAVAILABLE_MSG);
+                    } else if (response.status === 429 || errText.includes("RESOURCE_EXHAUSTED") || errText.includes("quota")) {
                         alert(OVERQUOTA_MSG);
                     } else {
                         alert(`API 오류 (${response.status}): ${errText}`);
@@ -954,7 +1908,34 @@
                         const autoTitle = `단어장 ${decks.length + 1}`;
                         saveDeckToHistory(autoTitle, wordsData);
 
-                        showCardView();
+                        // Keep the saved deck and explicitly transition to study mode after recognition.
+                        // Cleanup failures must never send a successfully recognized deck back to upload.
+                        try {
+                            await clearPendingImageJob();
+                        } catch (cleanupError) {
+                            console.warn('임시 이미지 정리에 실패했습니다.', cleanupError);
+                        }
+                        try {
+                            bookReadingText = await extractBookTextFromImage(base64Data, mimeType, apiKey);
+                        } catch (bookOcrError) {
+                            console.warn('본문 전체 인식에 실패했습니다. 단어 공부 모드는 이용할 수 있습니다.', bookOcrError);
+                            bookReadingText = '';
+                        }
+                        if (currentDeckId !== null) {
+                            const savedDecks = getSavedDecks();
+                            const savedDeck = savedDecks.find(deck => deck.id === currentDeckId);
+                            if (savedDeck) { savedDeck.bookText = bookReadingText; saveDecksToStorage(savedDecks); }
+                        }
+                        document.getElementById('uploadView').classList.add('hidden');
+                        document.getElementById('loadingView').classList.add('hidden');
+                        document.getElementById('cardView').classList.add('hidden');
+                        document.getElementById('testView').classList.add('hidden');
+                        document.getElementById('testSummaryView').classList.add('hidden');
+                        document.getElementById('vocabularyQuizView').classList.add('hidden');
+                        document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+                        document.getElementById('imageModeChoiceView').classList.remove('hidden');
+                        document.getElementById('imageModeChoiceView').classList.add('flex');
+                        document.getElementById('imageModeChoiceStatus').textContent = bookReadingText ? '단어·숙어와 영어 본문을 인식했어요.' : '단어는 인식했지만 본문 인식에 실패했어요. 단어 공부 모드는 이용할 수 있습니다.';
                         return;
                     }
                 }
@@ -992,9 +1973,786 @@
                 resultCard.innerHTML = `
                     <div class="flex items-center justify-between mb-1">
                         <div class="flex items-center gap-2">
+                            <span class="shrink-0 inline-flex items-center justify-center min-w-7 h-6 px-1.5 rounded-md bg-slate-100 text-slate-600 text-xs font-bold">문제 ${idx + 1}</span>
                             <i class="fa-solid ${isCorrect ? 'fa-circle-check text-emerald-600' : 'fa-circle-xmark text-rose-600'} text-base"></i>
                             <span class="font-extrabold text-sm text-slate-800">${item.word}</span>
                             <span class="text-xs text-indigo-500 font-mono">${item.phonetic || ''}</span>
                         </div>
                         <button type="button" onclick="playSpecificAudio('${item.word.replace(/'/g, "\\'")}', '${item.exampleEn.replace(/'/g, "\\'")}')" class="w-6 h-6 bg-white hover:bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs shadow-sm border border-slate-200 transition">
                             <i class="fa-solid fa-volume-high text-[10px]"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-600 font-semibold mb-1">뜻: ${item.meaning}</p>
+                    <div class="text-[11px] space-y-0.5">
+                        <p class="${isCorrect ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}">
+                            내 입력: ${userAns ? userAns : '(입력 없음)'}
+                        </p>
+                        <p class="text-slate-500 font-medium">예문: ${item.exampleEn}</p>
+                    </div>
+                `;
+                listContainer.appendChild(resultCard);
+            });
+
+            document.getElementById('testScoreText').innerText = `총 ${testWords.length}문제 중 ${correctCount}문제를 맞혔습니다!`;
+            document.getElementById('incorrectCountBadge').innerText = incorrectWords.length;
+
+            const retryBtn = document.getElementById('retryIncorrectBtn');
+            if (incorrectWords.length > 0) {
+                retryBtn.classList.remove('hidden');
+            } else {
+                retryBtn.classList.add('hidden');
+            }
+        }
+
+        function exitSpellTest() {
+            window.speechSynthesis.cancel();
+            showCardView();
+        }
+        function startVocabularyQuiz(onlyIncorrect = false) {
+            if (onlyIncorrect && vocabularyQuizIncorrectWords.length === 0) {
+                alert('다시 풀 틀린 문제가 없습니다.');
+                return;
+            }
+            if (!Array.isArray(wordsData) || wordsData.length < 2) {
+                alert('뜻 고르기 퀴즈를 만들려면 뜻이 있는 단어가 최소 2개 필요합니다.');
+                return;
+            }
+            const usableWords = wordsData.filter(item => item && String(item.word || '').trim() && String(item.meaning || '').trim());
+            if (!onlyIncorrect && usableWords.length < 2) {
+                alert('영어 단어와 뜻이 입력된 단어가 최소 2개 필요합니다.');
+                return;
+            }
+
+            vocabularyQuizWords = onlyIncorrect
+                ? [...vocabularyQuizIncorrectWords]
+                : [...usableWords];
+            if (vocabularyQuizWords.length < 2 && !onlyIncorrect) {
+                // A full quiz can still use two or more words; the guard above handles smaller lists.
+                alert('뜻 고르기 퀴즈를 만들려면 뜻이 있는 단어가 최소 2개 필요합니다.');
+                return;
+            }
+            for (let i = vocabularyQuizWords.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [vocabularyQuizWords[i], vocabularyQuizWords[j]] = [vocabularyQuizWords[j], vocabularyQuizWords[i]];
+            }
+            vocabularyQuizIndex = 0;
+            vocabularyQuizAnswers = new Array(vocabularyQuizWords.length).fill(null);
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizView').classList.remove('hidden');
+            renderVocabularyQuestion();
+        }
+
+        function playVocabularyQuizWord() {
+            const item = vocabularyQuizWords[vocabularyQuizIndex];
+            if (!item || !String(item.word || '').trim() || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(String(item.word).trim());
+            utterance.lang = 'en-US';
+            utterance.rate = getSpeechRate();
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function renderVocabularyQuestion() {
+            if (vocabularyQuizIndex >= vocabularyQuizWords.length) {
+                showVocabularyQuizSummary();
+                return;
+            }
+            vocabularyQuizAnswered = false;
+            const item = vocabularyQuizWords[vocabularyQuizIndex];
+            document.getElementById('vocabQuizProgress').textContent = `문제 ${vocabularyQuizIndex + 1} / ${vocabularyQuizWords.length}`;
+            document.getElementById('vocabQuizQuestionNumber').textContent = `(문제 ${vocabularyQuizIndex + 1})`;
+            document.getElementById('vocabQuizWord').textContent = item.word;
+            document.getElementById('vocabQuizPhonetic').textContent = item.phonetic || '';
+            const quizStressEl = document.getElementById('vocabQuizStressPattern');
+            quizStressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
+            quizStressEl.classList.remove('hidden');
+            document.getElementById('vocabQuizFeedback').className = 'hidden text-center text-sm font-bold mt-4';
+            document.getElementById('vocabQuizFeedback').textContent = '';
+            document.getElementById('vocabQuizNextBtn').classList.add('hidden');
+
+            const correctMeaning = String(item.meaning).trim();
+            const distractors = [...new Set(wordsData
+                .filter(candidate => candidate && String(candidate.word || '').trim() && String(candidate.meaning || '').trim() && String(candidate.meaning).trim() !== correctMeaning)
+                .map(candidate => String(candidate.meaning).trim()))];
+            for (let i = distractors.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [distractors[i], distractors[j]] = [distractors[j], distractors[i]];
+            }
+            const choices = [correctMeaning, ...distractors.slice(0, 3)];
+            for (let i = choices.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [choices[i], choices[j]] = [choices[j], choices[i]];
+            }
+
+            const container = document.getElementById('vocabQuizChoices');
+            container.innerHTML = '';
+            choices.forEach((meaning, choiceIndex) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'w-full text-left bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-2xl p-4 text-sm font-semibold text-slate-700 transition';
+                button.textContent = meaning;
+                button.addEventListener('click', () => answerVocabularyQuestion(meaning, button));
+                container.appendChild(button);
+            });
+            // Automatically pronounce the English word when each quiz question appears.
+            playVocabularyQuizWord();
+        }
+
+        function answerVocabularyQuestion(selectedMeaning, selectedButton) {
+            if (vocabularyQuizAnswered) return;
+            vocabularyQuizAnswered = true;
+            const item = vocabularyQuizWords[vocabularyQuizIndex];
+            const correctMeaning = String(item.meaning).trim();
+            const isCorrect = selectedMeaning === correctMeaning;
+            vocabularyQuizAnswers[vocabularyQuizIndex] = { selectedMeaning, isCorrect };
+            const buttons = [...document.getElementById('vocabQuizChoices').querySelectorAll('button')];
+            buttons.forEach(button => {
+                button.disabled = true;
+                button.classList.remove('hover:bg-emerald-50', 'hover:border-emerald-300');
+                if (button.textContent.slice(3) === correctMeaning) {
+                    button.classList.add('bg-emerald-50', 'border-emerald-400', 'text-emerald-800');
+                } else if (button === selectedButton && !isCorrect) {
+                    button.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-800');
+                }
+            });
+            const feedback = document.getElementById('vocabQuizFeedback');
+            feedback.textContent = isCorrect ? '정답입니다! 잘했어요.' : `아쉬워요. 정답은: ${correctMeaning}`;
+            feedback.className = `text-center text-sm font-bold mt-4 ${isCorrect ? 'text-emerald-700' : 'text-rose-700'}`;
+            const nextBtn = document.getElementById('vocabQuizNextBtn');
+            nextBtn.innerHTML = vocabularyQuizIndex + 1 >= vocabularyQuizWords.length ? '결과 보기 <i class="fa-solid fa-award ml-1"></i>' : '다음 문제 <i class="fa-solid fa-arrow-right ml-1"></i>';
+            nextBtn.classList.remove('hidden');
+
+            // 정답이면 잠깐 피드백을 보여준 뒤 자동으로 다음 문제로 이동한다.
+            // 오답은 정답을 확인할 시간을 주기 위해 기존처럼 직접 다음 버튼을 누르게 한다.
+            if (isCorrect) {
+                nextBtn.classList.add('hidden');
+                setTimeout(() => {
+                    if (vocabularyQuizAnswered) nextVocabularyQuestion();
+                }, 700);
+            }
+        }
+
+        function nextVocabularyQuestion() {
+            if (!vocabularyQuizAnswered) return;
+            vocabularyQuizIndex++;
+            renderVocabularyQuestion();
+        }
+
+        function showVocabularyQuizSummary() {
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.remove('hidden');
+            const resultList = document.getElementById('vocabQuizResultList');
+            resultList.innerHTML = '';
+            let correctCount = 0;
+            vocabularyQuizIncorrectWords = [];
+            vocabularyQuizWords.forEach((item, idx) => {
+                const answer = vocabularyQuizAnswers[idx];
+                if (answer && answer.isCorrect) correctCount++;
+                else vocabularyQuizIncorrectWords.push(item);
+                const row = document.createElement('div');
+                row.className = `p-3 rounded-xl border ${answer && answer.isCorrect ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`;
+                const word = document.createElement('p');
+                word.className = 'font-bold text-slate-800';
+                word.textContent = `${idx + 1}. ${item.word}`;
+                const meaning = document.createElement('p');
+                meaning.className = 'text-sm text-slate-600 mt-1';
+                meaning.textContent = `정답: ${item.meaning}`;
+                const chosen = document.createElement('p');
+                chosen.className = 'text-xs mt-1';
+                chosen.textContent = `내 선택: ${answer ? answer.selectedMeaning : '미응답'}`;
+                row.append(word, meaning, chosen);
+                resultList.appendChild(row);
+            });
+            document.getElementById('vocabQuizScore').textContent = `총 ${vocabularyQuizWords.length}문제 중 ${correctCount}문제를 맞혔습니다!`;
+            const retryIncorrectBtn = document.getElementById('retryIncorrectVocabularyBtn');
+            if (vocabularyQuizIncorrectWords.length > 0) retryIncorrectBtn.classList.remove('hidden');
+            else retryIncorrectBtn.classList.add('hidden');
+        }
+
+        function exitVocabularyQuiz() {
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            showCardView();
+        }
+
+
+        function renderCard() {
+            if (wordsData.length === 0) return;
+            const item = wordsData[currentIndex];
+
+            document.getElementById('cardWord').innerText = item.word;
+            document.getElementById('cardPhonetic').innerText = item.phonetic || "[ - ]";
+            const stressEl = document.getElementById('cardStressPattern');
+            stressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
+            stressEl.classList.remove('hidden');
+            document.getElementById('cardMeaning').innerText = item.meaning;
+            document.getElementById('cardExampleEn').innerText = item.exampleEn;
+            document.getElementById('cardExampleKo').innerText = item.exampleKo;
+
+            document.getElementById('progressIndicator').innerText = `${currentIndex + 1} / ${wordsData.length}`;
+            // This optional badge is not present in the current HTML; guard it so
+            // a missing element cannot stop the word count/list from refreshing.
+            const wordIndexBadge = document.getElementById('wordIndexBadge');
+            if (wordIndexBadge) wordIndexBadge.innerText = `Word #${currentIndex + 1}`;
+
+            document.getElementById('prevBtn').disabled = currentIndex === 0;
+            document.getElementById('nextBtn').disabled = currentIndex === wordsData.length - 1;
+
+            // Keep the word count correct before the accordion is opened.
+            const totalWordCountEl = document.getElementById('totalWordCount');
+            if (totalWordCountEl) totalWordCountEl.textContent = String(wordsData.length);
+            renderWordList();
+
+            speakCurrentWord();
+        }
+
+        function nextCard() {
+            if (currentIndex < wordsData.length - 1) {
+                currentIndex++;
+                renderCard();
+            }
+        }
+
+        function prevCard() {
+            if (currentIndex > 0) {
+                currentIndex--;
+                renderCard();
+            }
+        }
+
+        function speakCurrentWord() {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const item = wordsData[currentIndex];
+            const utterance = new SpeechSynthesisUtterance(item.word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function getSpeechRate() {
+            const saved = Number(localStorage.getItem(SPEECH_RATE_KEY));
+            return Number.isFinite(saved) && saved >= 0.5 && saved <= 1.2
+                ? saved
+                : DEFAULT_SPEECH_RATE;
+        }
+
+        function updateSpeechRate(value) {
+            const rate = Math.min(1.2, Math.max(0.5, Number(value) || DEFAULT_SPEECH_RATE));
+            try {
+                localStorage.setItem(SPEECH_RATE_KEY, String(rate));
+            } catch (e) {
+                console.warn('읽기 속도를 저장하지 못했습니다.', e);
+            }
+            ['speechRateSlider'].forEach(id => {
+                const slider = document.getElementById(id);
+                if (slider) slider.value = String(rate);
+            });
+            ['speechRateValue'].forEach(id => {
+                const label = document.getElementById(id);
+                if (label) label.textContent = rate.toFixed(2).replace(/0$/, '') + 'x';
+            });
+        }
+
+        function initializeSpeechRateControls() {
+            updateSpeechRate(getSpeechRate());
+        }
+
+        function speakExample() {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const item = wordsData[currentIndex];
+            const utterance = new SpeechSynthesisUtterance(item.exampleEn);
+            utterance.lang = 'en-US';
+            utterance.rate = getSpeechRate();
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function toggleWordList() {
+            const container = document.getElementById('wordListContainer');
+            const icon = document.getElementById('listToggleIcon');
+            const isOpening = container.classList.contains('hidden');
+            if (isOpening) {
+                renderWordList();
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+            if (icon) {
+                icon.classList.toggle('fa-chevron-down', !isOpening);
+                icon.classList.toggle('fa-chevron-up', isOpening);
+            }
+        }
+
+        function renderWordList() {
+            const listEl = document.getElementById('wordListItems');
+            const countEl = document.getElementById('totalWordCount');
+            if (!listEl || !countEl) return;
+
+            const list = Array.isArray(wordsData) ? wordsData : [];
+            countEl.textContent = String(list.length);
+            listEl.replaceChildren();
+
+            if (list.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'text-sm text-slate-500 text-center py-4';
+                empty.textContent = '등록된 단어가 없습니다. 단어장을 다시 열거나 단어를 추가해 보세요.';
+                listEl.appendChild(empty);
+                return;
+            }
+
+            list.forEach((item, idx) => {
+                // Support both the current schema and common alternate field names
+                // so a saved deck with older word objects still displays correctly.
+                const data = item && typeof item === 'object' ? item : { word: item };
+                const word = String(data.word ?? data.english ?? data.term ?? data.vocabulary ?? data.target ?? data.단어 ?? '').trim();
+                const phonetic = String(data.phonetic ?? data.ipa ?? data.pronunciation ?? '').trim();
+                const meaning = String(data.meaning ?? data.definition ?? data.korean ?? data.translation ?? data.뜻 ?? '').trim();
+
+                const row = document.createElement('div');
+                row.className = 'flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-100 hover:bg-slate-50';
+                if (idx === currentIndex) {
+                    row.classList.add('bg-indigo-50', 'border-indigo-200');
+                }
+
+                const select = document.createElement('button');
+                select.type = 'button';
+                select.className = 'flex-1 min-w-0 text-left';
+                select.addEventListener('click', () => selectWordFromList(idx));
+
+                const number = document.createElement('span');
+                number.className = 'inline-block text-xs text-slate-400 w-7 align-top';
+                number.textContent = '#' + (idx + 1);
+
+                const details = document.createElement('span');
+                details.className = 'inline-block align-top min-w-0';
+                details.style.maxWidth = 'calc(100% - 2rem)';
+
+                const wordEl = document.createElement('span');
+                wordEl.className = 'block text-base font-semibold text-slate-800 break-words';
+                wordEl.textContent = word || '(단어 필드 확인 필요)';
+
+                const phoneticEl = document.createElement('span');
+                phoneticEl.className = 'block text-sm text-indigo-600 font-mono break-words';
+                phoneticEl.textContent = phonetic;
+
+                const meaningEl = document.createElement('span');
+                meaningEl.className = 'block text-sm text-slate-600 whitespace-pre-line break-words';
+                meaningEl.textContent = meaning;
+
+                details.append(wordEl, phoneticEl, meaningEl);
+                select.append(number, details);
+
+                const actions = document.createElement('div');
+                actions.className = 'flex items-center gap-1 shrink-0';
+
+                const editBtn = document.createElement('button');
+                editBtn.type = 'button';
+                editBtn.className = 'w-9 h-9 bg-slate-100 hover:bg-indigo-100 text-slate-600 rounded-lg flex items-center justify-center';
+                editBtn.title = '수정';
+                editBtn.innerHTML = '<i class="fa-solid fa-pen text-xs"></i>';
+                editBtn.addEventListener('click', () => openWordEditorModal(idx));
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'w-9 h-9 bg-slate-100 hover:bg-rose-100 text-slate-600 rounded-lg flex items-center justify-center';
+                deleteBtn.title = '삭제';
+                deleteBtn.innerHTML = '<i class="fa-solid fa-trash-can text-xs"></i>';
+                deleteBtn.addEventListener('click', () => deleteWordFromList(idx));
+
+                actions.append(editBtn, deleteBtn);
+                row.append(select, actions);
+                listEl.appendChild(row);
+            });
+        }
+
+        function selectWordFromList(idx) {
+            currentIndex = idx;
+            renderCard();
+            renderWordList();
+        }
+
+        function deleteWordFromList(idx) {
+            wordsData.splice(idx, 1);
+
+            if (wordsData.length === 0) {
+                currentIndex = 0;
+                backToUpload();
+            } else {
+                if (currentIndex >= wordsData.length) {
+                    currentIndex = wordsData.length - 1;
+                }
+                saveDeckToHistory(currentDeckTitle, wordsData, currentDeckId);
+                renderCard();
+                renderWordList();
+            }
+        }
+
+        function openWordEditorModal(idx) {
+            editingWordIdx = idx;
+            const titleEl = document.getElementById('wordEditModalTitle');
+
+            if (idx >= 0 && idx < wordsData.length) {
+                titleEl.innerText = `단어 수정 (#${idx + 1})`;
+                const item = wordsData[idx];
+                document.getElementById('editWordInput').value = item.word || '';
+                document.getElementById('editPhoneticInput').value = item.phonetic || '';
+                document.getElementById('editMeaningInput').value = item.meaning || '';
+                document.getElementById('editExampleEnInput').value = item.exampleEn || '';
+                document.getElementById('editExampleKoInput').value = item.exampleKo || '';
+            } else {
+                titleEl.innerText = "단어 직접 추가";
+                document.getElementById('editWordInput').value = '';
+                document.getElementById('editPhoneticInput').value = '';
+                document.getElementById('editMeaningInput').value = '';
+                document.getElementById('editExampleEnInput').value = '';
+                document.getElementById('editExampleKoInput').value = '';
+            }
+
+            document.getElementById('wordEditModal').classList.remove('hidden');
+            document.getElementById('editWordInput').focus();
+        }
+
+        async function autoFillWordInfo() {
+            const word = document.getElementById('editWordInput').value.trim();
+            if (!word) return;
+
+            const cachedWord = getCachedWordInfo(word);
+            if (cachedWord) {
+                fillWordInfoFields(cachedWord);
+                return;
+            }
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey) {
+                openApiKeyModal();
+                return;
+            }
+
+            const btn = document.getElementById('aiFillBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> 분석 중...`;
+
+            const systemPrompt = "You are an expert English teacher. Provide accurate information for the given word in valid JSON format only with keys: word, phonetic (IPA format like [æpəl]), meaning (a string containing all common Korean meanings, numbered on separate lines with the most common/representative meaning first and parts of speech where useful), exampleEn (simple example sentence using the first meaning), exampleKo (Korean translation of example). Include only common, useful meanings and do not invent obscure senses. Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
+            const userQuery = `Provide details for the word "${word}" including all common meanings, with the most common meaning first and each meaning on a separate numbered line.`;
+
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorDetails = await response.text();
+                    if (response.status === 503 || errorDetails.includes("UNAVAILABLE")) {
+                        alert(UNAVAILABLE_MSG);
+                    } else if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`AI 조회 실패: ${errorDetails}`);
+                    }
+                    throw new Error("API_ERROR_ALREADY_SHOWN");
+                }
+
+                const result = await response.json();
+                let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    const data = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
+
+                    saveCachedWordInfo(word, data);
+                    fillWordInfoFields(data);
+                }
+            } catch (err) {
+                console.error(err);
+                if (err.message !== "API_ERROR_ALREADY_SHOWN") {
+                    alert("자동 채우기 중 오류가 발생했습니다.");
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        function closeWordEditorModal() {
+            document.getElementById('wordEditModal').classList.add('hidden');
+        }
+
+        function saveWordEdit() {
+            const word = document.getElementById('editWordInput').value.trim();
+            const nonexistentPhonetic = document.getElementById('editPhoneticInput').value.trim();
+            const meaning = document.getElementById('editMeaningInput').value.trim();
+            const exampleEn = document.getElementById('editExampleEnInput').value.trim();
+            const exampleKo = document.getElementById('editExampleKoInput').value.trim();
+
+            if (!word) return;
+
+            const newWordObj = {
+                word: word,
+                phonetic: nonexistentPhonetic || "[ - ]",
+                meaning: meaning || "뜻 없음",
+                exampleEn: exampleEn || word,
+                exampleKo: exampleKo || meaning
+            };
+
+            if (editingWordIdx >= 0 && editingWordIdx < wordsData.length) {
+                wordsData[editingWordIdx] = newWordObj;
+            } else {
+                wordsData.push(newWordObj);
+                currentIndex = wordsData.length - 1;
+            }
+
+            saveDeckToHistory(currentDeckTitle, wordsData, currentDeckId);
+
+            // Refresh the list immediately so edits are visible even when the accordion is open.
+            renderWordList();
+            closeWordEditorModal();
+            showCardView();
+        }
+
+        function showLoading(msg) {
+            document.getElementById('uploadView').classList.add('hidden');
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            const bookView = document.getElementById('bookReadingView');
+            if (bookView) { bookView.classList.add('hidden'); bookView.classList.remove('flex'); }
+            document.getElementById('loadingText').innerText = msg;
+            document.getElementById('loadingView').classList.remove('hidden');
+        }
+
+        function chooseRecognizedStudyMode(mode) {
+            document.getElementById('imageModeChoiceView').classList.add('hidden');
+            document.getElementById('imageModeChoiceView').classList.remove('flex');
+            if (mode === 'book') {
+                document.getElementById('bookReadingText').textContent = bookReadingText || '본문을 인식하지 못했습니다.';
+                document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 처음부터 읽기를 누르세요.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
+                document.getElementById('bookReadingView').classList.remove('hidden');
+                document.getElementById('bookReadingView').classList.add('flex');
+            } else {
+                enterRecognizedWordsStudyMode();
+            }
+        }
+
+        function enterRecognizedWordsStudyMode() {
+            if (!Array.isArray(wordsData) || wordsData.length === 0) {
+                backToUpload();
+                return;
+            }
+            currentIndex = 0;
+            // Set the visible screen before rendering audio/cards so a rendering issue
+            // cannot leave the loading screen active after successful image recognition.
+            document.getElementById('uploadView').classList.add('hidden');
+            document.getElementById('loadingView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            document.getElementById('cardView').classList.remove('hidden');
+            try {
+                renderCard();
+                renderWordList();
+            } catch (renderError) {
+                console.error('인식된 단어장 학습 화면 표시 중 오류:', renderError);
+                // The study screen remains visible even if a secondary UI component fails.
+            }
+        }
+
+        function showCardView() {
+            document.getElementById('uploadView').classList.add('hidden');
+            document.getElementById('loadingView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            document.getElementById('cardView').classList.remove('hidden');
+            renderCard();
+            renderWordList();
+        }
+
+        function startSpellTest(onlyIncorrect) {
+            if (wordsData.length === 0) return;
+            testWords = onlyIncorrect ? [...incorrectWords] : [...wordsData];
+            if (testWords.length === 0) {
+                alert("테스트할 단어가 없습니다!");
+                return;
+            }
+
+            // Randomize every test (including retries) so the child cannot rely on memorized word-list order.
+            for (let i = testWords.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [testWords[i], testWords[j]] = [testWords[j], testWords[i]];
+            }
+
+            testIndex = 0;
+            userAnswers = new Array(testWords.length).fill('');
+            
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('vocabularyQuizView').classList.add('hidden');
+            document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            document.getElementById('testView').classList.remove('hidden');
+
+            playCurrentTestAudio();
+            setTimeout(() => {
+                document.getElementById('testSpellingInput').focus();
+            }, 100);
+        }
+
+        function stopSpellTestAudio() {
+            // 이전 문제/재생의 대기 타이머와 음성을 모두 중단한다.
+            spellTestAudioRunId++;
+            if (spellTestAudioTimer !== null) {
+                clearTimeout(spellTestAudioTimer);
+                spellTestAudioTimer = null;
+            }
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        }
+
+        function playCurrentTestAudio() {
+            if (testWords.length === 0 || testIndex >= testWords.length) return;
+            const item = testWords[testIndex];
+            document.getElementById('testProgressIndicator').innerText = `문제 ${testIndex + 1} / ${testWords.length}`;
+            document.getElementById('testQuestionNumber').innerText = `(문제 ${testIndex + 1})`;
+
+            // 다시 듣기 시 입력한 답은 유지하고, 이전 음성 재생만 종료한다.
+            stopSpellTestAudio();
+            const audioRunId = spellTestAudioRunId;
+            if (!('speechSynthesis' in window)) return;
+
+            // Spell test audio order: question number, example sentence, then the target word twice.
+            const questionNumber = testIndex + 1;
+            const sentence = String(item.exampleEn || '').trim();
+            const word = String(item.word || '').trim();
+
+            const playWordTwice = () => {
+                if (!word) return;
+                const firstWord = new SpeechSynthesisUtterance(word);
+                firstWord.lang = 'en-US';
+                firstWord.rate = getSpeechRate();
+
+                const secondWord = new SpeechSynthesisUtterance(word);
+                secondWord.lang = 'en-US';
+                secondWord.rate = getSpeechRate();
+
+                // 단어를 두 번 읽을 때 사이에 여유를 둔다.
+                firstWord.onend = () => {
+                    if (audioRunId !== spellTestAudioRunId) return;
+                    spellTestAudioTimer = setTimeout(() => {
+                        spellTestAudioTimer = null;
+                        if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(secondWord);
+                    }, Math.round(900 / getSpeechRate()));
+                };
+                if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(firstWord);
+            };
+
+            const numberUtterance = new SpeechSynthesisUtterance(
+                questionNumber === 1 ? 'Number one' :
+                questionNumber === 2 ? 'Number two' :
+                questionNumber === 3 ? 'Number three' :
+                questionNumber === 4 ? 'Number four' :
+                questionNumber === 5 ? 'Number five' :
+                questionNumber === 6 ? 'Number six' :
+                questionNumber === 7 ? 'Number seven' :
+                questionNumber === 8 ? 'Number eight' :
+                questionNumber === 9 ? 'Number nine' :
+                questionNumber === 10 ? 'Number ten' :
+                questionNumber === 11 ? 'Number eleven' :
+                questionNumber === 12 ? 'Number twelve' :
+                questionNumber === 13 ? 'Number thirteen' :
+                questionNumber === 14 ? 'Number fourteen' :
+                questionNumber === 15 ? 'Number fifteen' :
+                questionNumber === 16 ? 'Number sixteen' :
+                questionNumber === 17 ? 'Number seventeen' :
+                questionNumber === 18 ? 'Number eighteen' :
+                questionNumber === 19 ? 'Number nineteen' :
+                questionNumber === 20 ? 'Number twenty' :
+                `Number ${questionNumber}`
+            );
+            numberUtterance.lang = 'en-US';
+            numberUtterance.rate = getSpeechRate();
+            numberUtterance.onend = () => {
+                if (audioRunId !== spellTestAudioRunId) return;
+                if (sentence) {
+                    const sentenceUtterance = new SpeechSynthesisUtterance(sentence);
+                    sentenceUtterance.lang = 'en-US';
+                    sentenceUtterance.rate = getSpeechRate();
+                    // 예문이 끝난 뒤 단어 발음이 시작되기까지 잠깐 더 기다린다.
+                    sentenceUtterance.onend = () => {
+                        if (audioRunId !== spellTestAudioRunId) return;
+                        spellTestAudioTimer = setTimeout(() => {
+                            spellTestAudioTimer = null;
+                            if (audioRunId === spellTestAudioRunId) playWordTwice();
+                        }, Math.round(1500 / getSpeechRate()));
+                    };
+                    if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(sentenceUtterance);
+                } else {
+                    // If no example sentence is available, play the target word twice.
+                    playWordTwice();
+                }
+            };
+            if (audioRunId === spellTestAudioRunId) window.speechSynthesis.speak(numberUtterance);
+        }
+
+        function playSpecificAudio(word, exampleEn) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const u1 = new SpeechSynthesisUtterance(word);
+            u1.lang = 'en-US'; u1.rate = getSpeechRate();
+            const u3 = new SpeechSynthesisUtterance(exampleEn);
+            u3.lang = 'en-US'; u3.rate = getSpeechRate();
+            u1.onend = () => { window.speechSynthesis.speak(u3); };
+            window.speechSynthesis.speak(u1);
+        }
+
+        function handleTestInputKeydown(event) {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+
+            // Ignore key-repeat and any further Enter keydowns until the key is released.
+            if (event.repeat || testEnterHeld) return;
+            testEnterHeld = true;
+            submitTestAnswer();
+        }
+
+        // Reset the hold guard only when Enter is actually released, even if focus changes.
+        document.addEventListener('keyup', (event) => {
+            if (event.key === 'Enter') testEnterHeld = false;
+        });
+
+        function submitTestAnswer() {
+            // Ignore duplicate Enter events from mobile keyboards/IME during a short transition window.
+            const now = Date.now();
+            if (now - lastTestSubmitAt < 500) return;
+            lastTestSubmitAt = now;
+
+            const inputVal = document.getElementById('testSpellingInput').value.trim();
+            userAnswers[testIndex] = inputVal;
+
+            stopSpellTestAudio();
+            testIndex++;
+            if (testIndex < testWords.length) {
+                document.getElementById('testSpellingInput').value = '';
+                playCurrentTestAudio();
+                document.getElementById('testSpellingInput').focus();
+            } else {
+                showTestSummary();
+            }
+        }
+    </script>
+</body>
+</html>
