@@ -205,7 +205,6 @@
 
                 <div class="flex items-start justify-between mb-4">
                     <div>
-                        <span class="text-sm font-bold text-indigo-600 block mb-1">오늘의 단어</span>
                         <h2 id="cardWord" class="text-4xl sm:text-5xl font-black text-slate-900 tracking-tight">apple</h2>
                         <span id="cardPhonetic" class="text-base font-mono text-indigo-500 font-semibold mt-1 block">[ˈæpəl]</span>
                         <div id="cardStressPattern" class="hidden mt-2 text-sm font-semibold text-emerald-700"></div>
@@ -768,24 +767,22 @@
             const lines = String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
             return lines.map((line, index) => {
                 let content = line.replace(/^\s*\d+\s*[.)、:：-]?\s*/, '').trim();
-                let pos = '';
+
+                // Remove part-of-speech labels instead of displaying them.
                 const leading = content.match(/^\(?([^():：]+)\)?\s*[:：-]\s*(.+)$/);
                 if (leading && partOfSpeechPattern.test(leading[1].trim())) {
-                    pos = leading[1].trim();
                     content = leading[2].trim();
                 } else {
                     const leadingParen = content.match(/^\(([^)]+)\)\s*(.+)$/);
                     if (leadingParen && partOfSpeechPattern.test(leadingParen[1].trim())) {
-                        pos = leadingParen[1].trim();
                         content = leadingParen[2].trim();
                     }
                 }
+
                 const trailing = content.match(/\s*\(([^()]+)\)\s*$/);
-                if (!pos && trailing && partOfSpeechPattern.test(trailing[1].trim())) {
-                    pos = trailing[1].trim();
+                if (trailing && partOfSpeechPattern.test(trailing[1].trim())) {
                     content = content.slice(0, trailing.index).trim();
                 }
-                if (pos) content = `${content} (${pos})`;
                 return `${index + 1}. ${content}`;
             }).join('\n');
         }
