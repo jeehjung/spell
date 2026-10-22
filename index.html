@@ -280,7 +280,7 @@
                     <button id="bookReadingPlayPauseBtn" type="button" onclick="playBookReading()" aria-label="재생" title="재생" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i id="bookReadingPlayPauseIcon" class="fa-solid fa-play" aria-hidden="true"></i></button>
                     <button type="button" onclick="stopBookReading()" aria-label="정지" title="정지" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop" aria-hidden="true"></i></button>
                 </div>
-                <p id="bookReadingStatus" class="text-sm font-bold text-slate-600 mb-2">읽을 준비가 되었어요.</p>
+                <p id="bookReadingStatus" class="hidden" aria-live="polite"></p>
                 <div class="mb-3 rounded-xl bg-slate-50 border border-slate-200 p-3" aria-label="읽기 진행률">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <span class="text-xs font-bold text-slate-600">읽기 진행률</span>
