@@ -1733,55 +1733,51 @@
             return extracted.replace(/^```(?:text)?\s*/i, '').replace(/\s*```$/, '').trim();
         }
 
-        function splitBookTextIntoChunks(text, wordsPerChunk = 6) {
-            // Short phrase chunks make pause/resume reliable even where speech boundary events are unavailable.
-            const tokens = String(text || '').match(/\S+\s*/g) || [];
-            const chunks = [];
-            for (let i = 0; i < tokens.length; i += wordsPerChunk) {
-                chunks.push(tokens.slice(i, i + wordsPerChunk).join(''));
-            }
-            return chunks;
+        function splitBookTextIntoChunks(text) {
+            // Keep the full passage as one speech unit for natural, uninterrupted reading.
+            return String(text || '').trim() ? [String(text)] : [];
         }
-
         function renderBookReadingScript() {
             const container = document.getElementById('bookReadingText');
             if (!container) return;
-            if (!bookReadingChunks.length) {
-                container.textContent = bookReadingText;
-                return;
-            }
-            container.innerHTML = bookReadingChunks.map((chunk, index) => {
-                const safeText = chunk.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-                const activeClass = index === bookReadingChunkIndex ? 'bg-amber-200 text-slate-900 rounded px-0.5 font-bold' : '';
-                return `<span id="bookReadingChunk-${index}" class="${activeClass}">${safeText}</span>`;
+            const text = String(bookReadingText || '');
+            if (!text) { container.textContent = ''; return; }
+
+            // The script is displayed as a continuous passage. Only the word at the current
+            // speech boundary is highlighted; the text is never split into audio chunks.
+            const tokens = text.match(/\\S+\\s*/g) || [];
+            let offset = 0;
+            container.innerHTML = tokens.map((token) => {
+                const start = offset;
+                offset += token.length;
+                const safeText = token.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                const active = bookReadingChunkCharIndex >= start && bookReadingChunkCharIndex < offset;
+                return `<span class="${active ? 'bg-amber-200 text-slate-900 rounded px-0.5 font-bold' : ''}">${safeText}</span>`;
             }).join('');
-            const active = document.getElementById(`bookReadingChunk-${bookReadingChunkIndex}`);
+            const active = container.querySelector('.bg-amber-200');
             if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
-
         function updateBookReadingProgress() {
             const slider = document.getElementById('bookReadingProgress');
             const label = document.getElementById('bookReadingProgressLabel');
-            const total = bookReadingChunks.length;
+            const totalChars = String(bookReadingText || '').length;
+            const position = Math.max(0, Math.min(bookReadingChunkCharIndex, totalChars));
             if (slider) {
-                slider.max = String(Math.max(0, total - 1));
-                slider.value = String(Math.min(bookReadingChunkIndex, Math.max(0, total - 1)));
-                slider.disabled = total === 0;
+                slider.max = String(totalChars);
+                slider.value = String(position);
+                slider.disabled = totalChars === 0;
             }
             if (label) {
-                const percent = total ? Math.round(Math.min(bookReadingChunkIndex + (bookReadingChunkIndex < total ? 0.5 : 0), total) / total * 100) : 0;
+                const percent = totalChars ? Math.round(position / totalChars * 100) : 0;
                 label.textContent = `${percent}%`;
             }
         }
-
         function seekBookReading(value) {
             if (!bookReadingText.trim()) return;
-            if (!bookReadingChunks.length) bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
             bookReadingRunId++;
             bookReadingPaused = true;
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            bookReadingChunkIndex = Math.max(0, Math.min(Number(value) || 0, bookReadingChunks.length - 1));
-            bookReadingChunkCharIndex = 0;
+            bookReadingChunkCharIndex = Math.max(0, Math.min(Number(value) || 0, bookReadingText.length));
             renderBookReadingScript();
             updateBookReadingProgress();
             const status = document.getElementById('bookReadingStatus');
@@ -1806,10 +1802,13 @@
 
         function startBookReading() {
             if (!bookReadingText.trim()) return;
-            if (!('speechSynthesis' in window)) { document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.'; return; }
+            if (!('speechSynthesis' in window)) {
+                document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.';
+                return;
+            }
             window.speechSynthesis.cancel();
             bookReadingRunId++;
-            bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+            bookReadingChunks = [bookReadingText];
             bookReadingChunkIndex = 0;
             bookReadingChunkCharIndex = 0;
             bookReadingPaused = false;
@@ -1819,25 +1818,34 @@
         }
         function speakNextBookChunk(runId) {
             if (runId !== bookReadingRunId || bookReadingPaused) return;
-            if (bookReadingChunkIndex >= bookReadingChunks.length) {
+            const fullText = String(bookReadingText || '');
+            if (bookReadingChunkCharIndex >= fullText.length) {
                 bookReadingPaused = false;
-                bookReadingChunkCharIndex = 0;
+                bookReadingChunkCharIndex = fullText.length;
                 updateBookReadingProgress();
                 renderBookReadingScript();
                 document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다. 재생을 누르면 처음부터 다시 읽습니다.';
                 return;
             }
-            const chunk = bookReadingChunks[bookReadingChunkIndex];
-            const utterance = new SpeechSynthesisUtterance(chunk.trim());
+
+            const startOffset = Math.max(0, Math.min(bookReadingChunkCharIndex, fullText.length));
+            const remainingText = fullText.slice(startOffset);
+            const utterance = new SpeechSynthesisUtterance(remainingText);
             utterance.lang = 'en-US';
             utterance.rate = getSpeechRate();
-            utterance.onend = () => {
-                if (runId !== bookReadingRunId || bookReadingPaused) return;
-                bookReadingChunkIndex++;
-                bookReadingChunkCharIndex = 0;
+            utterance.onboundary = (event) => {
+                if (runId !== bookReadingRunId || bookReadingPaused || typeof event.charIndex !== 'number') return;
+                bookReadingChunkCharIndex = Math.min(startOffset + event.charIndex, fullText.length);
                 updateBookReadingProgress();
                 renderBookReadingScript();
-                speakNextBookChunk(runId);
+            };
+            utterance.onend = () => {
+                if (runId !== bookReadingRunId || bookReadingPaused) return;
+                bookReadingChunkCharIndex = fullText.length;
+                updateBookReadingProgress();
+                renderBookReadingScript();
+                bookReadingPaused = false;
+                document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다. 재생을 누르면 처음부터 다시 읽습니다.';
             };
             utterance.onerror = (event) => {
                 if (runId === bookReadingRunId && event.error !== 'canceled' && event.error !== 'interrupted') {
@@ -1846,19 +1854,21 @@
             };
             updateBookReadingProgress();
             renderBookReadingScript();
-            document.getElementById('bookReadingStatus').textContent = `읽는 중... ${Math.min(bookReadingChunkIndex + 1, bookReadingChunks.length)} / ${bookReadingChunks.length}`;
+            document.getElementById('bookReadingStatus').textContent = startOffset > 0
+                ? `이어서 읽는 중... (${Math.round(startOffset / fullText.length * 100)}%)`
+                : '읽는 중...';
             window.speechSynthesis.speak(utterance);
         }
         function pauseBookReading() {
             if (!('speechSynthesis' in window)) return;
             if (window.speechSynthesis.speaking || window.speechSynthesis.pending || !bookReadingPaused) {
-                // Keep the current short phrase index and cancel the utterance; resume starts this phrase, not the passage.
+                // Cancel the single full-passage utterance but preserve its last reported character position.
                 bookReadingPaused = true;
                 bookReadingRunId++;
                 window.speechSynthesis.cancel();
                 renderBookReadingScript();
                 updateBookReadingProgress();
-                document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 현재 표시된 구간부터 이어 읽습니다.';
+                document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 현재 위치부터 이어 읽습니다.';
             }
         }
         function resumeBookReading() {
@@ -1867,11 +1877,7 @@
                 document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.';
                 return;
             }
-            if (!bookReadingChunks.length) {
-                bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
-                bookReadingChunkIndex = 0;
-            }
-            if (bookReadingChunkIndex >= bookReadingChunks.length) {
+            if (bookReadingChunkCharIndex >= bookReadingText.length) {
                 startBookReading();
                 return;
             }
