@@ -2935,7 +2935,9 @@
             bookView.classList.add('flex');
             renderBookReadingScript();
             updateBookReadingProgress();
-            document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요. 재생 버튼을 누르면 처음부터 읽습니다.';
+            document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요. 자동으로 읽기를 시작합니다.';
+            // Entering one-time reading mode starts speech immediately.
+            playBookReading();
         }
 
         function chooseRecognizedStudyMode(mode) {
@@ -2947,9 +2949,10 @@
                 bookReadingChunkCharIndex = 0;
                 renderBookReadingScript();
                 updateBookReadingProgress();
-                document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 재생 버튼을 누르면 처음부터 읽습니다.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
+                document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 자동으로 읽기를 시작합니다.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
                 document.getElementById('bookReadingView').classList.remove('hidden');
                 document.getElementById('bookReadingView').classList.add('flex');
+                if (bookReadingText.trim()) playBookReading();
             } else {
                 enterRecognizedWordsStudyMode();
             }
