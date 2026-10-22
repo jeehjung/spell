@@ -218,10 +218,9 @@
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100">
                 <h2 class="text-2xl font-black text-slate-900 mb-2"><i class="fa-solid fa-book-open-reader text-amber-500 mr-2"></i>책읽기모드</h2>
                 <p class="text-sm text-slate-500 mb-4">사진에서 추출한 영어 본문을 처음부터 끝까지 읽습니다. 상단의 전체 읽기 속도를 조절할 수 있어요.</p>
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <button type="button" onclick="startBookReading()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play mr-1"></i> 처음부터 읽기</button>
+                <div class="grid grid-cols-3 gap-2 mb-4">
+                    <button type="button" onclick="playBookReading()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play mr-1"></i> 재생</button>
                     <button type="button" onclick="pauseBookReading()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-pause mr-1"></i> 일시정지</button>
-                    <button type="button" onclick="resumeBookReading()" class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play mr-1"></i> 이어 읽기</button>
                     <button type="button" onclick="stopBookReading()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop mr-1"></i> 정지</button>
                 </div>
                 <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-3">읽을 준비가 되었어요.</p>
@@ -1746,29 +1745,52 @@
             return chunks;
         }
 
+        function playBookReading() {
+            if (!bookReadingText.trim()) {
+                document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.';
+                return;
+            }
+            if (!('speechSynthesis' in window)) {
+                document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.';
+                return;
+            }
+            // 일시정지 상태라면 현재 위치부터 이어 읽고, 정지/완료 상태라면 처음부터 재생한다.
+            if (bookReadingPaused) {
+                resumeBookReading();
+            } else {
+                startBookReading();
+            }
+        }
+
         function startBookReading() {
             if (!bookReadingText.trim()) return;
             if (!('speechSynthesis' in window)) { document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.'; return; }
-            stopBookReading(); bookReadingChunks = splitBookTextIntoChunks(bookReadingText); bookReadingChunkIndex = 0; bookReadingPaused = false; bookReadingRunId++; speakNextBookChunk(bookReadingRunId);
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            bookReadingRunId++;
+            bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+            bookReadingChunkIndex = 0;
+            bookReadingPaused = false;
+            speakNextBookChunk(bookReadingRunId);
         }
 
         function speakNextBookChunk(runId) {
-            if (runId !== bookReadingRunId) return;
+            if (runId !== bookReadingRunId || bookReadingPaused) return;
             if (bookReadingChunkIndex >= bookReadingChunks.length) {
-                document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다.';
+                bookReadingPaused = false;
+                document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다. 재생을 누르면 처음부터 다시 읽습니다.';
                 return;
             }
             const utterance = new SpeechSynthesisUtterance(bookReadingChunks[bookReadingChunkIndex]);
             utterance.lang = 'en-US';
             utterance.rate = getSpeechRate();
             utterance.onend = () => {
-                if (runId !== bookReadingRunId) return;
+                if (runId !== bookReadingRunId || bookReadingPaused) return;
                 bookReadingChunkIndex++;
                 speakNextBookChunk(runId);
             };
             utterance.onerror = (event) => {
                 if (runId === bookReadingRunId && event.error !== 'canceled' && event.error !== 'interrupted') {
-                    document.getElementById('bookReadingStatus').textContent = '읽기 중 오류가 발생했습니다. 다시 읽기를 눌러 주세요.';
+                    document.getElementById('bookReadingStatus').textContent = '읽기 중 오류가 발생했습니다. 재생을 눌러 다시 시도해 주세요.';
                 }
             };
             document.getElementById('bookReadingStatus').textContent = `읽는 중... ${Math.min(bookReadingChunkIndex + 1, bookReadingChunks.length)} / ${bookReadingChunks.length}`;
@@ -1777,25 +1799,46 @@
 
         function pauseBookReading() {
             if (!('speechSynthesis' in window)) return;
-            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { bookReadingPaused = true; window.speechSynthesis.pause(); document.getElementById('bookReadingStatus').textContent = '일시정지했어요.'; }
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+                bookReadingPaused = true;
+                window.speechSynthesis.pause();
+                document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 이어서 읽습니다.';
+            }
         }
 
         function resumeBookReading() {
             if (!('speechSynthesis' in window)) return;
-            if (!bookReadingChunks.length) { if (!bookReadingText.trim()) { document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.'; return; } bookReadingChunks = splitBookTextIntoChunks(bookReadingText); bookReadingChunkIndex = 0; bookReadingRunId++; }
-            if (bookReadingChunkIndex >= bookReadingChunks.length) { document.getElementById('bookReadingStatus').textContent = '이미 끝까지 읽었습니다. 처음부터 읽기를 눌러 주세요.'; return; }
-            if (bookReadingPaused) {
-                window.speechSynthesis.resume(); bookReadingPaused = false; document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
-                setTimeout(() => { if (!bookReadingPaused && !window.speechSynthesis.speaking && !window.speechSynthesis.pending && bookReadingChunkIndex < bookReadingChunks.length) speakNextBookChunk(bookReadingRunId); }, 500);
+            if (!bookReadingChunks.length) {
+                if (!bookReadingText.trim()) { document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.'; return; }
+                bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+                bookReadingChunkIndex = 0;
+                bookReadingRunId++;
+            }
+            if (bookReadingChunkIndex >= bookReadingChunks.length) {
+                startBookReading();
                 return;
             }
-            speakNextBookChunk(bookReadingRunId);
+            const runId = bookReadingRunId;
+            window.speechSynthesis.resume();
+            bookReadingPaused = false;
+            document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
+            // 일부 모바일 브라우저는 resume()만으로 음성이 재개되지 않으므로, 재개 실패 시 현재 구간을 다시 시작한다.
+            setTimeout(() => {
+                if (runId !== bookReadingRunId || bookReadingPaused) return;
+                if (!window.speechSynthesis.speaking && !window.speechSynthesis.pending) {
+                    speakNextBookChunk(runId);
+                }
+            }, 500);
         }
 
         function stopBookReading() {
-            bookReadingRunId++; bookReadingPaused = false;
+            bookReadingRunId++;
+            bookReadingPaused = false;
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            const status = document.getElementById('bookReadingStatus'); if (status) status.textContent = '읽기를 정지했어요.';
+            // 정지 후 재생은 항상 처음부터 시작하도록 위치를 초기화한다.
+            bookReadingChunkIndex = 0;
+            const status = document.getElementById('bookReadingStatus');
+            if (status) status.textContent = '읽기를 정지했어요. 재생을 누르면 처음부터 읽습니다.';
         }
 
         function exitBookReadingMode() {
