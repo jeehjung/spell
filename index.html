@@ -14,6 +14,61 @@
         button.text-xs { font-size: 0.9rem !important; }
         button.text-sm { font-size: 1rem !important; }
         input, textarea, select { font-size: 1rem; }
+        /* Visible draggable thumb for the book-reading seek bar. */
+        #bookReadingSeekSlider {
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            touch-action: pan-y;
+        }
+        #bookReadingSeekSlider::-webkit-slider-runnable-track {
+            height: 10px;
+            background: transparent;
+        }
+        #bookReadingSeekSlider::-moz-range-track {
+            height: 10px;
+            background: transparent;
+        }
+        #bookReadingSeekSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            margin-top: -5px;
+            border-radius: 50%;
+            background: #f59e0b;
+            border: 3px solid #fff;
+            box-shadow: 0 1px 5px rgba(15, 23, 42, 0.35);
+            cursor: grab;
+        }
+        #bookReadingSeekSlider:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.08); }
+        #bookReadingSeekSlider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #f59e0b;
+            border: 3px solid #fff;
+            box-shadow: 0 1px 5px rgba(15, 23, 42, 0.35);
+            cursor: grab;
+        }
+        #bookReadingSeekSlider:active::-moz-range-thumb { cursor: grabbing; transform: scale(1.08); }
+        #cardSynonyms button, #cardAntonyms button {
+            display: inline-block;
+            margin: 2px 4px 2px 0;
+            padding: 3px 8px;
+            border-radius: 9999px;
+            border: 1px solid #c7d2fe;
+            background: #eef2ff;
+            color: #4338ca;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        #cardAntonyms button {
+            border-color: #fecdd3;
+            background: #fff1f2;
+            color: #be123c;
+        }
+        #cardSynonyms button:active, #cardAntonyms button:active { transform: scale(0.97); }
         #cardExampleEn { font-size: 1.15rem; line-height: 1.65; }
         #cardExampleKo { font-size: 1rem; line-height: 1.6; }
         #cardMeaning { font-size: 1.15rem; line-height: 1.8; white-space: pre-line; }
@@ -239,7 +294,7 @@
                         <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden pointer-events-none" role="progressbar" aria-label="읽기 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bookReadingProgressTrack">
                             <div id="bookReadingProgressFill" class="h-full bg-amber-500 rounded-full transition-[width] duration-200" style="width:0%"></div>
                         </div>
-                        <input id="bookReadingSeekSlider" type="range" min="0" max="100" step="0.1" value="0" oninput="seekBookReading(this.value)" aria-label="읽기 위치 조절" title="읽기 위치 조절" class="absolute inset-0 w-full h-2.5 opacity-0 cursor-pointer">
+                        <input id="bookReadingSeekSlider" type="range" min="0" max="100" step="0.1" value="0" oninput="seekBookReading(this.value)" aria-label="읽기 위치 조절" title="읽기 위치 조절" class="absolute inset-x-0 top-1/2 -translate-y-1/2 w-full h-6 appearance-none bg-transparent cursor-pointer z-10">
                     </div>
                 </div>
                 <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
@@ -2340,6 +2395,64 @@
         }
 
 
+        function renderWordRelationButtons(containerId, terms, relationType, sourceWord) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.replaceChildren();
+            if (!terms.length) {
+                container.textContent = '정보 없음';
+                return;
+            }
+            terms.forEach((term) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = term;
+                button.title = relationType === 'synonym' ? '눌러서 유의어를 단어 목록에 추가' : '눌러서 반의어를 단어 목록에 추가';
+                button.setAttribute('aria-label', term + (relationType === 'synonym' ? ' 유의어를 단어 목록에 추가' : ' 반의어를 단어 목록에 추가'));
+                button.addEventListener('click', () => addRelatedWordToDeck(term, relationType, sourceWord));
+                container.appendChild(button);
+            });
+        }
+
+        function addRelatedWordToDeck(term, relationType, sourceWord) {
+            const newWord = String(term || '').trim();
+            if (!newWord) return;
+            const existingIndex = wordsData.findIndex(item =>
+                String(item?.word || item?.english || item?.term || '').trim().toLowerCase() === newWord.toLowerCase()
+            );
+            if (existingIndex >= 0) {
+                const existing = wordsData[existingIndex];
+                currentIndex = existingIndex;
+                renderCard();
+                const status = document.getElementById('bookReadingStatus');
+                alert(`'${newWord}'은(는) 이미 단어 목록에 있어요.`);
+                return;
+            }
+
+            const relationLabel = relationType === 'synonym' ? '유의어' : '반의어';
+            wordsData.push({
+                word: newWord,
+                phonetic: '[ - ]',
+                meaning: `${sourceWord}의 ${relationLabel}`,
+                exampleEn: newWord,
+                exampleKo: `${sourceWord}의 ${relationLabel}로 추가한 단어`,
+                synonyms: [],
+                antonyms: []
+            });
+            currentIndex = wordsData.length - 1;
+            saveDeckToHistory(currentDeckTitle, wordsData, currentDeckId);
+            renderCard();
+            renderWordList();
+            const listContainer = document.getElementById('wordListContainer');
+            if (listContainer) listContainer.classList.remove('hidden');
+            const listIcon = document.getElementById('listToggleIcon');
+            if (listIcon) {
+                listIcon.classList.remove('fa-chevron-down');
+                listIcon.classList.add('fa-chevron-up');
+            }
+            alert(`'${newWord}'을(를) 단어 목록에 추가했어요.`);
+        }
+
         function renderCard() {
             if (wordsData.length === 0) return;
             const item = wordsData[currentIndex];
@@ -2352,8 +2465,8 @@
             document.getElementById('cardMeaning').innerText = item.meaning;
             const cardSynonyms = normalizeWordList(item.synonyms);
             const cardAntonyms = normalizeWordList(item.antonyms);
-            document.getElementById('cardSynonyms').innerText = cardSynonyms.join(', ') || '정보 없음';
-            document.getElementById('cardAntonyms').innerText = cardAntonyms.join(', ') || '정보 없음';
+            renderWordRelationButtons('cardSynonyms', cardSynonyms, 'synonym', item.word);
+            renderWordRelationButtons('cardAntonyms', cardAntonyms, 'antonym', item.word);
             document.getElementById('cardSynAnt').classList.toggle('hidden', !cardSynonyms.length && !cardAntonyms.length);
             document.getElementById('cardExampleEn').innerText = item.exampleEn;
             document.getElementById('cardExampleKo').innerText = item.exampleKo;
