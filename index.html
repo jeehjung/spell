@@ -223,7 +223,14 @@
                     <button type="button" onclick="pauseBookReading()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-pause" aria-label="Pause"></i></button>
                     <button type="button" onclick="stopBookReading()" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop" aria-label="Stop"></i></button>
                 </div>
-                <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-3">읽을 준비가 되었어요.</p>
+                <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-2">읽을 준비가 되었어요.</p>
+                <div class="mb-3 rounded-xl bg-slate-50 border border-slate-200 p-3">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label for="bookReadingProgress" class="text-xs font-bold text-slate-600">읽기 진행률</label>
+                        <span id="bookReadingProgressLabel" class="text-xs font-bold text-amber-700">0%</span>
+                    </div>
+                    <input id="bookReadingProgress" type="range" min="0" max="0" value="0" step="1" oninput="seekBookReading(this.value)" class="w-full accent-amber-500 cursor-pointer" aria-label="읽기 위치 선택">
+                </div>
                 <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
             </div>
         </div>
@@ -1223,8 +1230,12 @@
                 bookReadingText = String(selected.bookText || '');
                 if (!bookReadingText.trim()) { alert('이 보관함 항목에는 저장된 본문이 없습니다. 사진을 다시 인식해 주세요.'); return; }
                 stopBookReading();
-                document.getElementById('bookReadingText').textContent = bookReadingText;
-                document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요 · 처음부터 읽기 또는 이어 읽기를 누르세요.';
+                bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+                bookReadingChunkIndex = 0;
+                bookReadingChunkCharIndex = 0;
+                renderBookReadingScript();
+                updateBookReadingProgress();
+                document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요 · 진행률 바에서 위치를 선택할 수 있습니다.';
                 ['uploadView','loadingView','cardView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => document.getElementById(id).classList.add('hidden'));
                 document.getElementById('bookReadingView').classList.remove('hidden'); document.getElementById('bookReadingView').classList.add('flex');
             } else {
@@ -1722,34 +1733,60 @@
             return extracted.replace(/^```(?:text)?\s*/i, '').replace(/\s*```$/, '').trim();
         }
 
-        function splitBookTextIntoChunks(text, maxLength = 180) {
-            const sentences = String(text || '').match(/[^.!?]+[.!?]+[”’"')\]]*|[^.!?]+$/g) || [String(text || '')];
+        function splitBookTextIntoChunks(text, wordsPerChunk = 6) {
+            // Short phrase chunks make pause/resume reliable even where speech boundary events are unavailable.
+            const tokens = String(text || '').match(/\S+\s*/g) || [];
             const chunks = [];
-            let current = '';
-            for (const rawSentence of sentences) {
-                const sentence = rawSentence.trim();
-                if (!sentence) continue;
-                if ((current + ' ' + sentence).trim().length <= maxLength) {
-                    current = (current + ' ' + sentence).trim();
-                } else {
-                    if (current) chunks.push(current);
-                    if (sentence.length <= maxLength) current = sentence;
-                    else {
-                        const words = sentence.split(/\s+/);
-                        current = '';
-                        for (const word of words) {
-                            if ((current + ' ' + word).trim().length > maxLength && current) {
-                                chunks.push(current);
-                                current = word;
-                            } else current = (current + ' ' + word).trim();
-                        }
-                    }
-                }
+            for (let i = 0; i < tokens.length; i += wordsPerChunk) {
+                chunks.push(tokens.slice(i, i + wordsPerChunk).join(''));
             }
-            if (current) chunks.push(current);
             return chunks;
         }
 
+        function renderBookReadingScript() {
+            const container = document.getElementById('bookReadingText');
+            if (!container) return;
+            if (!bookReadingChunks.length) {
+                container.textContent = bookReadingText;
+                return;
+            }
+            container.innerHTML = bookReadingChunks.map((chunk, index) => {
+                const safeText = chunk.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                const activeClass = index === bookReadingChunkIndex ? 'bg-amber-200 text-slate-900 rounded px-0.5 font-bold' : '';
+                return `<span id="bookReadingChunk-${index}" class="${activeClass}">${safeText}</span>`;
+            }).join('');
+            const active = document.getElementById(`bookReadingChunk-${bookReadingChunkIndex}`);
+            if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
+        function updateBookReadingProgress() {
+            const slider = document.getElementById('bookReadingProgress');
+            const label = document.getElementById('bookReadingProgressLabel');
+            const total = bookReadingChunks.length;
+            if (slider) {
+                slider.max = String(Math.max(0, total - 1));
+                slider.value = String(Math.min(bookReadingChunkIndex, Math.max(0, total - 1)));
+                slider.disabled = total === 0;
+            }
+            if (label) {
+                const percent = total ? Math.round(Math.min(bookReadingChunkIndex + (bookReadingChunkIndex < total ? 0.5 : 0), total) / total * 100) : 0;
+                label.textContent = `${percent}%`;
+            }
+        }
+
+        function seekBookReading(value) {
+            if (!bookReadingText.trim()) return;
+            if (!bookReadingChunks.length) bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+            bookReadingRunId++;
+            bookReadingPaused = true;
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            bookReadingChunkIndex = Math.max(0, Math.min(Number(value) || 0, bookReadingChunks.length - 1));
+            bookReadingChunkCharIndex = 0;
+            renderBookReadingScript();
+            updateBookReadingProgress();
+            const status = document.getElementById('bookReadingStatus');
+            if (status) status.textContent = '선택한 위치부터 재생할 수 있습니다.';
+        }
         function playBookReading() {
             if (!bookReadingText.trim()) {
                 document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.';
@@ -1770,45 +1807,36 @@
         function startBookReading() {
             if (!bookReadingText.trim()) return;
             if (!('speechSynthesis' in window)) { document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.'; return; }
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
             bookReadingRunId++;
             bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
             bookReadingChunkIndex = 0;
             bookReadingChunkCharIndex = 0;
             bookReadingPaused = false;
+            renderBookReadingScript();
+            updateBookReadingProgress();
             speakNextBookChunk(bookReadingRunId);
         }
-
         function speakNextBookChunk(runId) {
             if (runId !== bookReadingRunId || bookReadingPaused) return;
             if (bookReadingChunkIndex >= bookReadingChunks.length) {
                 bookReadingPaused = false;
                 bookReadingChunkCharIndex = 0;
+                updateBookReadingProgress();
+                renderBookReadingScript();
                 document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다. 재생을 누르면 처음부터 다시 읽습니다.';
                 return;
             }
             const chunk = bookReadingChunks[bookReadingChunkIndex];
-            const startCharIndex = Math.min(bookReadingChunkCharIndex, chunk.length);
-            const remainingText = chunk.slice(startCharIndex).trimStart();
-            if (!remainingText) {
-                bookReadingChunkIndex++;
-                bookReadingChunkCharIndex = 0;
-                speakNextBookChunk(runId);
-                return;
-            }
-            const leadingWhitespace = chunk.slice(startCharIndex).length - chunk.slice(startCharIndex).trimStart().length;
-            const utterance = new SpeechSynthesisUtterance(remainingText);
+            const utterance = new SpeechSynthesisUtterance(chunk.trim());
             utterance.lang = 'en-US';
             utterance.rate = getSpeechRate();
-            utterance.onboundary = (event) => {
-                if (runId !== bookReadingRunId || bookReadingPaused || typeof event.charIndex !== 'number') return;
-                // Save the current word position so pause/resume continues near the interruption point.
-                bookReadingChunkCharIndex = Math.min(startCharIndex + leadingWhitespace + event.charIndex, chunk.length);
-            };
             utterance.onend = () => {
                 if (runId !== bookReadingRunId || bookReadingPaused) return;
                 bookReadingChunkIndex++;
                 bookReadingChunkCharIndex = 0;
+                updateBookReadingProgress();
+                renderBookReadingScript();
                 speakNextBookChunk(runId);
             };
             utterance.onerror = (event) => {
@@ -1816,22 +1844,23 @@
                     document.getElementById('bookReadingStatus').textContent = '읽기 중 오류가 발생했습니다. 재생을 눌러 다시 시도해 주세요.';
                 }
             };
+            updateBookReadingProgress();
+            renderBookReadingScript();
             document.getElementById('bookReadingStatus').textContent = `읽는 중... ${Math.min(bookReadingChunkIndex + 1, bookReadingChunks.length)} / ${bookReadingChunks.length}`;
             window.speechSynthesis.speak(utterance);
         }
-
         function pauseBookReading() {
             if (!('speechSynthesis' in window)) return;
             if (window.speechSynthesis.speaking || window.speechSynthesis.pending || !bookReadingPaused) {
-                // 모바일 브라우저에서 pause/resume이 멈춘 채 복귀하지 않는 경우를 피하고,
-                // 현재 문장 인덱스를 유지해 재생 시 해당 구간부터 다시 읽는다.
+                // Keep the current short phrase index and cancel the utterance; resume starts this phrase, not the passage.
                 bookReadingPaused = true;
                 bookReadingRunId++;
                 window.speechSynthesis.cancel();
-                document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 이어서 읽습니다.';
+                renderBookReadingScript();
+                updateBookReadingProgress();
+                document.getElementById('bookReadingStatus').textContent = '일시정지했어요. 재생을 누르면 현재 표시된 구간부터 이어 읽습니다.';
             }
         }
-
         function resumeBookReading() {
             if (!('speechSynthesis' in window)) return;
             if (!bookReadingText.trim()) {
@@ -1846,25 +1875,23 @@
                 startBookReading();
                 return;
             }
-            // resume() 대신 현재 문장을 새 utterance로 시작해 Android 브라우저에서도 안정적으로 재생한다.
             bookReadingPaused = false;
             bookReadingRunId++;
             const runId = bookReadingRunId;
             document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
             speakNextBookChunk(runId);
         }
-
         function stopBookReading() {
             bookReadingRunId++;
             bookReadingPaused = false;
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            // 정지 후 재생은 항상 처음부터 시작하도록 위치를 초기화한다.
             bookReadingChunkIndex = 0;
             bookReadingChunkCharIndex = 0;
+            updateBookReadingProgress();
+            renderBookReadingScript();
             const status = document.getElementById('bookReadingStatus');
             if (status) status.textContent = '읽기를 정지했어요. 재생을 누르면 처음부터 읽습니다.';
         }
-
         function exitBookReadingMode() {
             stopBookReading();
             document.getElementById('bookReadingView').classList.add('hidden');
@@ -2563,8 +2590,12 @@
             document.getElementById('imageModeChoiceView').classList.add('hidden');
             document.getElementById('imageModeChoiceView').classList.remove('flex');
             if (mode === 'book') {
-                document.getElementById('bookReadingText').textContent = bookReadingText || '본문을 인식하지 못했습니다.';
-                document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 처음부터 읽기를 누르세요.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
+                bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
+                bookReadingChunkIndex = 0;
+                bookReadingChunkCharIndex = 0;
+                renderBookReadingScript();
+                updateBookReadingProgress();
+                document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 진행률 바에서 위치를 선택할 수 있습니다.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
                 document.getElementById('bookReadingView').classList.remove('hidden');
                 document.getElementById('bookReadingView').classList.add('flex');
             } else {
