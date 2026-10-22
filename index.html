@@ -2534,10 +2534,7 @@
             document.getElementById('cardWord').innerText = item.word;
             document.getElementById('cardPhonetic').innerText = item.phonetic || "[ - ]";
             const stressEl = document.getElementById('cardStressPattern');
-            const stressPattern = String(item.stressPattern || '').trim();
-            stressEl.textContent = stressPattern
-                ? `강세: ${stressPattern}`
-                : "강세 표기 없음 · 발음기호의 ˈ 뒤 음절에 주강세";
+            stressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
             stressEl.classList.remove('hidden');
             document.getElementById('cardMeaning').innerText = item.meaning;
             const cardSynonyms = normalizeWordList(item.synonyms);
