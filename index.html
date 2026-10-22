@@ -610,6 +610,7 @@
         let bookReadingRunId = 0;
         let bookReadingChunks = [];
         let bookReadingChunkIndex = 0;
+        let bookReadingPaused = false;
 
         // Cache is used only by AI autofill; dictionary search results are never cached.
         const WORD_INFO_CACHE_KEY = 'spell_word_info_cache_v1';
@@ -1175,9 +1176,8 @@
                         <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
                             <i class="fa-solid fa-pen text-xs"></i>
                         </button>
-                        <button onclick="loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm">
-                            학습하기
-                        </button>
+                        <button onclick="loadDeckFromHistory(${deck.id}, 'words')" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm">단어 학습</button>
+                        <button onclick="loadDeckFromHistory(${deck.id}, 'book')" ${deck.bookText ? '' : 'disabled title="저장된 본문이 없습니다"'} class="bg-amber-500 hover:bg-amber-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-xs font-bold px-3 py-2 rounded-xl transition shadow-sm">한번에 읽기</button>
                         <button onclick="event.stopPropagation(); deleteDeckFromHistory(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition" title="삭제">
                             <i class="fa-solid fa-trash-can text-xs"></i>
                         </button>
@@ -1213,17 +1213,21 @@
             }
         }
 
-        function loadDeckFromHistory(id) {
-            const decks = getSavedDecks();
-            const selected = decks.find(d => d.id === id);
-            if (selected && selected.words && selected.words.length > 0) {
-                wordsData = [...selected.words];
-                currentDeckId = selected.id;
-                currentDeckTitle = selected.title;
-                currentIndex = 0;
-                closeHistoryModal();
-                showCardView();
-            }
+        function loadDeckFromHistory(id, mode = 'words') {
+            const selected = getSavedDecks().find(d => d.id === id);
+            if (!selected) return;
+            wordsData = Array.isArray(selected.words) ? [...selected.words] : [];
+            currentDeckId = selected.id; currentDeckTitle = selected.title; currentIndex = 0;
+            closeHistoryModal();
+            if (mode === 'book') {
+                bookReadingText = String(selected.bookText || '');
+                if (!bookReadingText.trim()) { alert('이 보관함 항목에는 저장된 본문이 없습니다. 사진을 다시 인식해 주세요.'); return; }
+                stopBookReading();
+                document.getElementById('bookReadingText').textContent = bookReadingText;
+                document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요 · 처음부터 읽기 또는 이어 읽기를 누르세요.';
+                ['uploadView','loadingView','cardView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => document.getElementById(id).classList.add('hidden'));
+                document.getElementById('bookReadingView').classList.remove('hidden'); document.getElementById('bookReadingView').classList.add('flex');
+            } else { showCardView(); }
         }
 
         function deleteDeckFromHistory(id) {
@@ -1744,15 +1748,8 @@
 
         function startBookReading() {
             if (!bookReadingText.trim()) return;
-            stopBookReading();
-            if (!('speechSynthesis' in window)) {
-                document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.';
-                return;
-            }
-            bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
-            bookReadingChunkIndex = 0;
-            bookReadingRunId++;
-            speakNextBookChunk(bookReadingRunId);
+            if (!('speechSynthesis' in window)) { document.getElementById('bookReadingStatus').textContent = '이 브라우저에서는 음성 읽기를 지원하지 않습니다.'; return; }
+            stopBookReading(); bookReadingChunks = splitBookTextIntoChunks(bookReadingText); bookReadingChunkIndex = 0; bookReadingPaused = false; bookReadingRunId++; speakNextBookChunk(bookReadingRunId);
         }
 
         function speakNextBookChunk(runId) {
@@ -1779,27 +1776,26 @@
         }
 
         function pauseBookReading() {
-            if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
-                window.speechSynthesis.pause();
-                document.getElementById('bookReadingStatus').textContent = '일시정지했어요.';
-            }
+            if (!('speechSynthesis' in window)) return;
+            if (window.speechSynthesis.speaking || window.speechSynthesis.pending) { bookReadingPaused = true; window.speechSynthesis.pause(); document.getElementById('bookReadingStatus').textContent = '일시정지했어요.'; }
         }
 
         function resumeBookReading() {
             if (!('speechSynthesis' in window)) return;
-            if (window.speechSynthesis.paused) {
-                window.speechSynthesis.resume();
-                document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
-            } else if (bookReadingChunks.length && bookReadingChunkIndex < bookReadingChunks.length) {
-                speakNextBookChunk(bookReadingRunId);
+            if (!bookReadingChunks.length) { if (!bookReadingText.trim()) { document.getElementById('bookReadingStatus').textContent = '먼저 읽을 본문을 불러와 주세요.'; return; } bookReadingChunks = splitBookTextIntoChunks(bookReadingText); bookReadingChunkIndex = 0; bookReadingRunId++; }
+            if (bookReadingChunkIndex >= bookReadingChunks.length) { document.getElementById('bookReadingStatus').textContent = '이미 끝까지 읽었습니다. 처음부터 읽기를 눌러 주세요.'; return; }
+            if (bookReadingPaused) {
+                window.speechSynthesis.resume(); bookReadingPaused = false; document.getElementById('bookReadingStatus').textContent = '이어서 읽는 중...';
+                setTimeout(() => { if (!bookReadingPaused && !window.speechSynthesis.speaking && !window.speechSynthesis.pending && bookReadingChunkIndex < bookReadingChunks.length) speakNextBookChunk(bookReadingRunId); }, 500);
+                return;
             }
+            speakNextBookChunk(bookReadingRunId);
         }
 
         function stopBookReading() {
-            bookReadingRunId++;
+            bookReadingRunId++; bookReadingPaused = false;
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            const status = document.getElementById('bookReadingStatus');
-            if (status) status.textContent = '읽기를 정지했어요.';
+            const status = document.getElementById('bookReadingStatus'); if (status) status.textContent = '읽기를 정지했어요.';
         }
 
         function exitBookReadingMode() {
@@ -1881,6 +1877,11 @@
                         } catch (bookOcrError) {
                             console.warn('본문 전체 인식에 실패했습니다. 단어 공부 모드는 이용할 수 있습니다.', bookOcrError);
                             bookReadingText = '';
+                        }
+                        if (currentDeckId !== null) {
+                            const savedDecks = getSavedDecks();
+                            const savedDeck = savedDecks.find(deck => deck.id === currentDeckId);
+                            if (savedDeck) { savedDeck.bookText = bookReadingText; saveDecksToStorage(savedDecks); }
                         }
                         document.getElementById('uploadView').classList.add('hidden');
                         document.getElementById('loadingView').classList.add('hidden');
