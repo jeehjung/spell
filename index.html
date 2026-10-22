@@ -29,29 +29,25 @@
             height: 10px;
             background: transparent;
         }
+        /* The visible knob is #bookReadingSeekKnob; keep the real range thumb transparent. */
         #bookReadingSeekSlider::-webkit-slider-thumb {
             -webkit-appearance: none;
             appearance: none;
-            width: 20px;
-            height: 20px;
-            margin-top: -5px;
-            border-radius: 50%;
-            background: #f59e0b;
-            border: 3px solid #fff;
-            box-shadow: 0 1px 5px rgba(15, 23, 42, 0.35);
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: 0;
             cursor: grab;
         }
-        #bookReadingSeekSlider:active::-webkit-slider-thumb { cursor: grabbing; transform: scale(1.08); }
+        #bookReadingSeekSlider:active::-webkit-slider-thumb { cursor: grabbing; }
         #bookReadingSeekSlider::-moz-range-thumb {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: #f59e0b;
-            border: 3px solid #fff;
-            box-shadow: 0 1px 5px rgba(15, 23, 42, 0.35);
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: 0;
             cursor: grab;
         }
-        #bookReadingSeekSlider:active::-moz-range-thumb { cursor: grabbing; transform: scale(1.08); }
+        #bookReadingSeekSlider:active::-moz-range-thumb { cursor: grabbing; }
         #cardSynonyms button, #cardAntonyms button {
             display: inline-block;
             margin: 2px 4px 2px 0;
@@ -288,13 +284,13 @@
                 <div class="mb-3 rounded-xl bg-slate-50 border border-slate-200 p-3" aria-label="읽기 진행률">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <span class="text-xs font-bold text-slate-600">읽기 진행률</span>
-                        <span id="bookReadingProgressLabel" class="text-xs font-bold text-amber-700">0%</span>
                     </div>
-                    <div class="relative w-full">
+                    <div class="relative w-full py-2">
                         <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden pointer-events-none" role="progressbar" aria-label="읽기 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bookReadingProgressTrack">
                             <div id="bookReadingProgressFill" class="h-full bg-amber-500 rounded-full transition-[width] duration-200" style="width:0%"></div>
                         </div>
-                        <input id="bookReadingSeekSlider" type="range" min="0" max="100" step="0.1" value="0" oninput="seekBookReading(this.value)" aria-label="읽기 위치 조절" title="읽기 위치 조절" class="absolute inset-x-0 top-1/2 -translate-y-1/2 w-full h-6 appearance-none bg-transparent cursor-pointer z-10">
+                        <div id="bookReadingSeekKnob" class="absolute top-1/2 left-0 -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-amber-500 border-[3px] border-white shadow-md pointer-events-none z-10" style="left:0%" aria-hidden="true"></div>
+                        <input id="bookReadingSeekSlider" type="range" min="0" max="100" step="0.1" value="0" oninput="seekBookReading(this.value)" aria-label="읽기 위치 조절" title="읽기 위치 조절" class="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer z-20">
                     </div>
                 </div>
                 <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
@@ -1852,17 +1848,17 @@
             if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
         function updateBookReadingProgress() {
-            const label = document.getElementById('bookReadingProgressLabel');
             const fill = document.getElementById('bookReadingProgressFill');
             const track = document.getElementById('bookReadingProgressTrack');
             const slider = document.getElementById('bookReadingSeekSlider');
+            const knob = document.getElementById('bookReadingSeekKnob');
             const totalChars = String(bookReadingText || '').length;
             const position = Math.max(0, Math.min(bookReadingChunkCharIndex, totalChars));
             const percent = totalChars ? Math.round(position / totalChars * 1000) / 10 : 0;
-            if (label) label.textContent = `${Math.round(percent)}%`;
             if (fill) fill.style.width = `${percent}%`;
             if (track) track.setAttribute('aria-valuenow', String(Math.round(percent)));
             if (slider && document.activeElement !== slider) slider.value = String(percent);
+            if (knob) knob.style.left = `${percent}%`;
         }
 
         function seekBookReading(value) {
