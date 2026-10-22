@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iun's Word Study - Enhanced</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Pretendard', sans-serif; }
+        .card-shadow { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
+        .pulse-btn { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen text-slate-800 flex flex-col items-center justify-between p-4 sm:p-6">
+
+    <!-- Header Section -->
+    <header class="w-full max-w-xl text-center py-4 relative z-10">
+        <div class="inline-flex items-center justify-center bg-indigo-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2">
+            <i class="fa-solid fa-graduation-cap mr-2"></i> Iun's Word Study
+        </div>
+        <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
+
+        <!-- Top Navigation / Utility Bar -->
+        <div class="mt-4 flex justify-center gap-2 flex-wrap">
+            <button type="button" onclick="openApiKeyModal()" class="cursor-pointer text-xs bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-600 border border-slate-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-key text-amber-500"></i>
+                <span id="apiKeyBtnText">API Key 설정</span>
+            </button>
+            <button type="button" onclick="openDictionaryModal()" class="cursor-pointer text-xs bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-700 border border-indigo-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-book-open text-indigo-600"></i> 사전 검색
+            </button>
+            <button type="button" onclick="openHistoryModal()" class="cursor-pointer text-xs bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border border-amber-200 shadow-sm px-3.5 py-2 rounded-full transition flex items-center gap-1.5 font-medium">
+                <i class="fa-solid fa-clock-rotate-left text-amber-600"></i> 저장된 단어장 보관함
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="w-full max-w-xl flex-1 flex flex-col items-center justify-center py-2">
+
+        <!-- Upload View (Initial Screen) -->
+        <div id="uploadView" class="w-full bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center my-auto">
+            <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl shadow-inner">
+                <i class="fa-solid fa-camera"></i>
+            </div>
+            <h2 class="text-xl font-extrabold text-slate-900 mb-2">단어장 사진 업로드</h2>
+            <p class="text-xs text-slate-500 mb-6 leading-relaxed">
+                공부할 영어 단어장 사진을 업로드하세요.<br>
+                Gemini AI가 단어, 발음기호, 뜻, 예문을 자동으로 추출합니다.
+            </p>
+
+            <label class="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-3.5 px-6 rounded-2xl transition shadow-lg shadow-indigo-100 inline-flex items-center justify-center gap-2 text-sm">
+                <i class="fa-solid fa-image"></i>
+                <span>사진 선택 또는 촬영하기</span>
+                <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+            </label>
+        </div>
+
+        <!-- Loading View -->
+        <div id="loadingView" class="hidden w-full max-w-xl bg-white rounded-3xl p-8 card-shadow border border-slate-100 text-center my-auto">
+            <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h2 id="loadingText" class="text-base font-bold text-slate-800 mb-1">단어장 분석 중...</h2>
+            <p class="text-xs text-slate-400">잠시만 기다려 주세요.</p>
+        </div>
+
+        <!-- Main Word Card View -->
+        <div id="cardView" class="hidden w-full max-w-xl flex flex-col gap-3 my-auto">
+            <!-- Top Stats / Action Row -->
+            <div class="flex items-center justify-between px-2">
+                <div class="flex items-center gap-2">
+                    <button type="button" onclick="backToUpload()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> 처음으로
+                    </button>
+                    <span id="wordIndexBadge" class="text-xs font-extrabold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100">Word #1</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <button type="button" onclick="startSpellTest(false)" class="cursor-pointer bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-full transition shadow-sm flex items-center gap-1.5 pulse-btn">
+                        <i class="fa-solid fa-pen-nib"></i> 단어 스펠링 테스트
+                    </button>
+                </div>
+            </div>
+
+            <!-- Flash Card Box -->
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h2 id="cardWord" class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">apple</h2>
+                        <span id="cardPhonetic" class="text-sm font-mono text-indigo-500 font-semibold mt-0.5 block">[ˈæpəl]</span>
+                    </div>
+                    <button type="button" onclick="speakCurrentWord()" class="w-12 h-12 bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 text-indigo-600 rounded-2xl flex items-center justify-center text-lg transition shadow-sm">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+
+                <div class="border-t border-slate-100 pt-4 mb-5">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">뜻 (Meaning)</span>
+                    <p id="cardMeaning" class="text-lg font-bold text-slate-800">사과</p>
+                </div>
+
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-100 relative group">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">예문 (Example)</span>
+                        <button type="button" onclick="speakExample()" class="text-indigo-600 hover:text-indigo-800 text-xs font-bold flex items-center gap-1">
+                            <i class="fa-solid fa-volume-high"></i> 음성 듣기
+                        </button>
+                    </div>
+                    <p id="cardExampleEn" class="text-sm font-semibold text-slate-800 mb-1">I ate a sweet red apple.</p>
+                    <p id="cardExampleKo" class="text-xs text-slate-500">나는 달콤한 빨간 사과를 먹었다.</p>
+                </div>
+
+                <!-- Navigation Controls inside Card -->
+                <div class="flex items-center justify-between mt-6">
+                    <button type="button" id="prevBtn" onclick="prevCard()" class="cursor-pointer bg-slate-100 hover:bg-slate-200 active:bg-slate-300 disabled:opacity-30 text-slate-700 font-bold px-5 py-2.5 rounded-xl transition text-xs flex items-center gap-1.5">
+                        <i class="fa-solid fa-chevron-left"></i> 이전 단어
+                    </button>
+                    <span id="progressIndicator" class="text-xs font-extrabold text-slate-500">1 / 10</span>
+                    <button type="button" id="nextBtn" onclick="nextCard()" class="cursor-pointer bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-30 text-white font-bold px-5 py-2.5 rounded-xl transition text-xs shadow-md flex items-center gap-1.5">
+                        다음 단어 <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Word List Accordion Toggle Bar -->
+            <button type="button" onclick="toggleWordList()" class="cursor-pointer w-full bg-white hover:bg-slate-50 active:bg-slate-100 card-shadow border border-slate-100 rounded-2xl px-5 py-3.5 flex items-center justify-between transition text-xs font-bold text-slate-700">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-list-ul text-indigo-600"></i>
+                    <span>전체 단어 목록 보기 (<span id="totalWordCount">0</span>개)</span>
+                </div>
+                <i id="listToggleIcon" class="fa-solid fa-chevron-down text-slate-400 transition-transform"></i>
+            </button>
+
+            <!-- Word List Accordion -->
+            <div id="wordListContainer" class="hidden bg-white rounded-2xl p-4 card-shadow border border-slate-100 max-h-72 overflow-y-auto flex flex-col gap-2">
+                <div id="wordListItems" class="space-y-1.5">
+                    <!-- Dynamic word list items -->
+                </div>
+                <button type="button" onclick="openWordEditorModal(-1)" class="w-full mt-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2 rounded-xl border border-indigo-200 transition text-xs flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> 새 단어 직접 추가하기
+                </button>
+            </div>
+        </div>
+
+        <!-- Spell Test View (Continuous Input) -->
+        <div id="testView" class="hidden w-full max-w-xl flex flex-col gap-3 my-auto">
+            <div class="flex items-center justify-between px-2">
+                <button type="button" onclick="exitSpellTest()" class="cursor-pointer bg-white hover:bg-slate-50 text-slate-600 border border-slate-200 shadow-sm px-3 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-1">
+                    <i class="fa-solid fa-arrow-left"></i> 테스트 나가기
+                </button>
+                <span id="testProgressIndicator" class="text-xs font-extrabold text-purple-600 bg-purple-50 px-3 py-1.5 rounded-full border border-purple-100">Test 1 / 10</span>
+            </div>
+
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 relative">
+                <div class="text-center mb-6">
+                    <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full inline-block mb-3 border border-indigo-100">
+                        🔊 단어 2회 반복 후 예문 재생
+                    </span>
+                    <div class="flex justify-center items-center gap-2 mb-2 flex-wrap">
+                        <button type="button" onclick="playCurrentTestAudio()" class="inline-flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold px-4 py-2 rounded-full transition text-xs shadow-md">
+                            <i class="fa-solid fa-volume-high text-xs"></i> 음성 다시 듣기
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-xs font-bold text-slate-700 mb-2 text-center">스펠링 입력</label>
+                    <input type="text" id="testSpellingInput" placeholder="단어를 입력하세요" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" onkeyup="if(event.key==='Enter') submitTestAnswer()" class="w-full text-center text-xl font-bold px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:border-purple-500 font-mono tracking-wider">
+                </div>
+
+                <div class="flex justify-center">
+                    <button type="button" onclick="submitTestAnswer()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3.5 px-6 rounded-2xl transition shadow-md text-xs flex items-center justify-center gap-1.5">
+                        <span>다음 문제로</span> <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Summary View (Detailed Results) -->
+        <div id="testSummaryView" class="hidden w-full max-w-xl my-auto">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center relative max-h-[85vh] flex flex-col">
+                <div class="w-16 h-16 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner shrink-0">
+                    <i class="fa-solid fa-award"></i>
+                </div>
+                <h3 class="text-xl font-black text-slate-900 mb-1 shrink-0">테스트 결과 완료!</h3>
+                <p id="testScoreText" class="text-sm font-extrabold text-indigo-600 mb-4 shrink-0">총 10문제 중 8문제를 맞혔습니다!</p>
+
+                <!-- Detailed Answer Review List -->
+                <div id="testResultList" class="flex-1 overflow-y-auto text-left space-y-2 mb-5 pr-1 border-t border-b border-slate-100 py-3">
+                    <!-- Answer items rendered dynamically -->
+                </div>
+
+                <div class="flex flex-col gap-2 shrink-0">
+                    <button type="button" id="retryIncorrectBtn" onclick="startSpellTest(true)" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-rotate-right"></i> 틀린 단어만 다시 테스트하기 (<span id="incorrectCountBadge">0</span>개)
+                    </button>
+                    <button type="button" onclick="startSpellTest(false)" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-play"></i> 전체 단어 다시 테스트하기
+                    </button>
+                    <button type="button" onclick="showCardView()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-xs flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-book-open"></i> 단어장 학습으로 돌아가기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Dictionary Lookup Modal -->
+    <div id="dictionaryModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl p-4 sm:p-5 max-w-sm w-full card-shadow border border-slate-100 relative my-auto max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-sm font-bold">
+                        <i class="fa-solid fa-book-open"></i>
+                    </div>
+                    <h3 class="text-base font-extrabold text-slate-900">개별 단어 사전 검색</h3>
+                </div>
+                <button onclick="closeDictionaryModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+
+            <!-- Compact Search Bar -->
+            <div class="flex gap-1.5 mb-3 shrink-0">
+                <input type="text" id="dictQueryInput" placeholder="단어 입력 (예: apple)" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false"
+                       onkeyup="if(event.key==='Enter') lookupDictionaryWord()"
+                       class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 font-medium">
+                <button onclick="lookupDictionaryWord()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-xl transition shadow-md shrink-0">
+                    검색
+                </button>
+            </div>
+
+            <!-- Loader inside Modal -->
+            <div id="dictLoading" class="hidden py-6 text-center shrink-0">
+                <div class="w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p class="text-xs text-slate-500 font-medium">사전 조회 중...</p>
+            </div>
+
+            <!-- Result Display Area -->
+            <div id="dictResultArea" class="hidden flex-1 overflow-y-auto min-h-0 bg-slate-50 rounded-2xl p-3 border border-slate-100 mb-3 space-y-2">
+                <div class="flex items-center justify-between border-b border-slate-200/60 pb-1.5">
+                    <div>
+                        <span id="dictResWord" class="text-base font-black text-slate-900">word</span>
+                        <span id="dictResPhonetic" class="text-xs text-slate-400 font-mono ml-1.5">[wɜːrd]</span>
+                    </div>
+                    <button type="button" onclick="speakDictWord()" class="w-7 h-7 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded-full flex items-center justify-center text-xs transition">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">의미 (Meaning)</span>
+                    <p id="dictResMeaning" class="text-xs font-semibold text-slate-800 mt-0.5">뜻 설명</p>
+                </div>
+                <div>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">예문 (Example)</span>
+                    <p id="dictResExampleEn" class="text-xs text-slate-800 font-medium mt-0.5">Example sentence.</p>
+                    <p id="dictResExampleKo" class="text-xs text-slate-500 mt-0.5">예문 해석</p>
+                </div>
+            </div>
+
+            <!-- Action Button for Dictionary Modal -->
+            <div id="dictAddAction" class="hidden shrink-0">
+                <button type="button" onclick="addDictWordToStudyDeck()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-xl transition text-xs shadow-md flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-plus"></i> 학습 단어장에 이 단어 추가하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved History Modal -->
+    <div id="historyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl p-4 sm:p-5 max-w-md w-full card-shadow border border-slate-100 relative my-auto max-h-[85vh] flex flex-col">
+            <div class="flex items-center justify-between mb-3 shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-sm font-bold">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <h3 class="text-base font-extrabold text-slate-900">저장된 단어장 보관함</h3>
+                </div>
+                <button onclick="closeHistoryModal()" class="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+            
+            <div id="historyListContainer" class="flex-1 overflow-y-auto min-h-0 space-y-2 pr-1">
+                <!-- History items rendered dynamically -->
+            </div>
+
+            <div id="savedDeckAudioPanel" class="hidden mt-3 p-3 bg-indigo-50 border border-indigo-100 rounded-2xl shrink-0">
+                <p id="savedDeckAudioTitle" class="text-xs font-bold text-indigo-800 text-center mb-2">Read aloud</p>
+                <div class="flex justify-center gap-2">
+                    <button type="button" onclick="resumeSavedDeckAudio()" aria-label="Play" title="Play" class="w-11 h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center"><i class="fa-solid fa-play"></i></button>
+                    <button type="button" onclick="pauseSavedDeckAudio()" aria-label="Pause" title="Pause" class="w-11 h-10 rounded-xl bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center"><i class="fa-solid fa-pause"></i></button>
+                    <button type="button" onclick="stopSavedDeckAudio()" aria-label="Stop" title="Stop" class="w-11 h-10 rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center"><i class="fa-solid fa-stop"></i></button>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
+                <button type="button" onclick="closeHistoryModal()" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl transition text-xs">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Key Setup Modal -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full card-shadow border border-slate-100 relative">
+            <div class="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
+                <i class="fa-solid fa-key"></i>
+            </div>
+            <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
+            <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                Gemini AI 단어 분석 및 자동 채우기 기능을 사용하려면 API 키가 필요합니다.<br>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 font-bold underline inline-flex items-center gap-1 mt-1">
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> 여기서 무료 API Key 발급받기
+                </a>
+            </p>
+
+            <div class="mb-5">
+                <label class="block text-xs font-bold text-slate-700 mb-1">Gemini API Key</label>
+                <input type="text" id="apiKeyInput" placeholder="AIzaSy..." autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 font-mono">
+            </div>
+
+            <div class="flex gap-2">
+                <button onclick="closeApiKeyModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 px-4 rounded-xl transition text-sm">
+                    취소
+                </button>
+                <button onclick="saveApiKey()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition text-sm shadow-md">
+                    저장하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Word Edit/Add Modal -->
+    <div id="wordEditModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4">
+        <div class="bg-white rounded-3xl p-5 sm:p-6 max-w-sm sm:max-w-md w-full card-shadow border border-slate-100 relative my-auto">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-extrabold text-slate-900" id="wordEditModalTitle">단어 편집</h3>
+                <button type="button" onclick="closeWordEditorModal()" class="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition">
+                    <i class="fa-solid fa-xmark text-xs"></i>
+                </button>
+            </div>
+
+            <div class="space-y-3 text-xs">
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="font-bold text-slate-700">단어 (Word)</label>
+                        <button type="button" onclick="autoFillWordInfo()" id="aiFillBtn" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-bold px-2.5 py-1 rounded-lg transition flex items-center gap-1 text-[11px] border border-indigo-200">
+                            <i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i> AI로 자동 채우기
+                        </button>
+                    </div>
+                    <input type="text" id="editWordInput" placeholder="예: apple" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-semibold">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">발음기호 (Phonetic)</label>
+                    <input type="text" id="editPhoneticInput" placeholder="자동 생성 또는 직접 입력" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 font-mono">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">뜻 (Meaning)</label>
+                    <input type="text" id="editMeaningInput" placeholder="자동 생성 또는 직접 입력" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">영어 예문 (Example En)</label>
+                    <input type="text" id="editExampleEnInput" placeholder="자동 생성 또는 직접 입력" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">예문 해석 (Example Ko)</label>
+                    <input type="text" id="editExampleKoInput" placeholder="자동 생성 또는 직접 입력" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex gap-2 mt-5">
+                <button type="button" onclick="closeWordEditorModal()" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 px-3 rounded-xl transition text-xs">
+                    취소
+                </button>
+                <button type="button" onclick="saveWordEdit()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-3 rounded-xl transition text-xs shadow-md">
+                    저장하기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script>
+        const HARDCODED_API_KEY = ""; 
+        const GEMINI_MODEL = "gemini-2.5-flash";
+        const OVERQUOTA_MSG = "api 사용량이 초과되었습니다. 추가 결제를 하거나, 내일 다시 시도해주세요. 저장된 단어장 사용은 제한없이 가능합니다";
+
+        let editingWordIdx = -1;
+
+        let wordsData = [];
+        let currentIndex = 0;
+        let currentDeckId = null;
+        let currentDeckTitle = "";
+
+        // Test mode states
+        let testWords = [];
+        let testIndex = 0;
+        let userAnswers = [];
+        let incorrectWords = [];
+
+        // Current dictionary lookup cached word object
+        let currentDictWord = null;
+
+        // Saved deck read-aloud state. SpeechSynthesis.resume() continues a pause;
+        // Stop cancels the queue and resets the cursor so Play starts at the beginning.
+        let savedDeckAudioWords = [];
+        let savedDeckAudioIndex = 0;
+        let savedDeckAudioPartIndex = 0;
+        let savedDeckAudioStopped = true;
+        let savedDeckAudioPaused = false;
+        let savedDeckAudioSession = 0;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            updateApiKeyUI();
+        });
+
+        function getSavedDecks() {
+            try {
+                return JSON.parse(localStorage.getItem('saved_word_decks') || "[]");
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveDecksToStorage(decks) {
+            localStorage.setItem('saved_word_decks', JSON.stringify(decks));
+        }
+
+        function saveDeckToHistory(title, words, specificDeckId = null) {
+            if (!words || words.length === 0) return;
+            let decks = getSavedDecks();
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('ko-KR');
+            const timeStr = now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+
+            let targetId = specificDeckId !== null ? specificDeckId : currentDeckId;
+            let existingIdx = targetId ? decks.findIndex(d => d.id === targetId) : -1;
+
+            if (existingIdx >= 0) {
+                decks[existingIdx].title = title || decks[existingIdx].title;
+                decks[existingIdx].words = words;
+                decks[existingIdx].count = words.length;
+                decks[existingIdx].date = dateStr;
+                decks[existingIdx].time = timeStr;
+                currentDeckId = decks[existingIdx].id;
+                currentDeckTitle = decks[existingIdx].title;
+            } else {
+                const newId = Date.now();
+                const defaultTitle = title && title.trim() !== "" ? title : `단어장 ${decks.length + 1}`;
+                const newDeck = {
+                    id: newId,
+                    title: defaultTitle,
+                    date: dateStr,
+                    time: timeStr,
+                    count: words.length,
+                    words: words,
+                    isFavorite: false
+                };
+                decks.unshift(newDeck);
+                currentDeckId = newId;
+                currentDeckTitle = defaultTitle;
+            }
+
+            // Enforce max 20 decks limit (including favorites)
+            if (decks.length > 20) {
+                let favorites = decks.filter(d => d.isFavorite);
+                let nonFavorites = decks.filter(d => !d.isFavorite);
+                
+                if (favorites.length >= 20) {
+                    decks = favorites.slice(0, 20);
+                } else {
+                    const slotsLeft = 20 - favorites.length;
+                    decks = [...favorites, ...nonFavorites.slice(0, slotsLeft)];
+                }
+            }
+
+            saveDecksToStorage(decks);
+        }
+
+        function openHistoryModal() {
+            renderHistoryList();
+            document.getElementById('historyModal').classList.remove('hidden');
+        }
+
+        function closeHistoryModal() {
+            stopSavedDeckAudio();
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        function renderHistoryList() {
+            const decks = getSavedDecks();
+            const container = document.getElementById('historyListContainer');
+            container.innerHTML = '';
+
+            if (decks.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-8 text-slate-400">
+                        <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                        <p class="text-xs">저장된 단어장이 없습니다.<br>사진을 업로드하면 자동으로 단어장이 보관됩니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort favorites first, then by ID descending
+            const sortedDecks = [...decks].sort((a, b) => {
+                if (a.isFavorite && !b.isFavorite) return -1;
+                if (!a.isFavorite && b.isFavorite) return 1;
+                return b.id - a.id;
+            });
+
+            sortedDecks.forEach((deck) => {
+                const sampleWords = deck.words && deck.words.length > 0 
+                    ? deck.words.slice(0, 3).map(w => w.word).join(', ') + (deck.words.length > 3 ? ' 외' : '')
+                    : '단어 없음';
+
+                const dateTimeDisplay = (deck.date && deck.time) ? `${deck.date} ${deck.time}` : (deck.date || '');
+                const starColorClass = deck.isFavorite ? 'text-amber-400' : 'text-slate-300 hover:text-amber-300';
+
+                const item = document.createElement('div');
+                item.className = `bg-slate-50 border ${deck.isFavorite ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200'} rounded-2xl p-3 flex items-center justify-between transition`;
+                item.innerHTML = `
+                    <div class="cursor-pointer flex-1 min-w-0 mr-2" onclick="loadDeckFromHistory(${deck.id})">
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 ${starColorClass}" title="즐겨찾기">
+                                <i class="fa-solid fa-star"></i>
+                            </button>
+                            <h4 class="font-bold text-sm text-slate-800 truncate">${deck.title}</h4>
+                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
+                        </div>
+                        <p class="text-[11px] text-slate-500 mt-1 truncate font-medium"><span class="text-slate-400">포함 단어:</span> ${sampleWords}</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">${dateTimeDisplay}</p>
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button onclick="event.stopPropagation(); startSavedDeckAudio(${deck.id})" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl transition shadow-sm">
+                            한번에 읽기
+                        </button>
+                        <button onclick="event.stopPropagation(); loadDeckFromHistory(${deck.id})" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl transition shadow-sm">
+                            학습하기
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteDeckFromHistory(${deck.id})" class="w-7 h-7 bg-slate-200 hover:bg-rose-100 text-slate-500 hover:text-rose-600 rounded-xl flex items-center justify-center transition" title="삭제">
+                            <i class="fa-solid fa-trash-can text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function startSavedDeckAudio(id) {
+            const decks = getSavedDecks();
+            const deck = decks.find(d => d.id === id);
+            if (!deck || !Array.isArray(deck.words) || deck.words.length === 0) {
+                alert("읽을 단어가 없습니다.");
+                return;
+            }
+            if (!('speechSynthesis' in window)) {
+                alert("이 브라우저에서는 음성 읽기를 지원하지 않습니다.");
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+            savedDeckAudioSession++;
+            savedDeckAudioWords = deck.words.map(w => ({
+                word: String(w.word || "").trim(),
+                exampleEn: String(w.exampleEn || "").trim()
+            })).filter(w => w.word || w.exampleEn);
+            savedDeckAudioIndex = 0;
+            savedDeckAudioPartIndex = 0;
+            savedDeckAudioStopped = false;
+            savedDeckAudioPaused = false;
+            document.getElementById('savedDeckAudioTitle').innerText = `${deck.title} · 전체 ${savedDeckAudioWords.length}개 읽기`;
+            document.getElementById('savedDeckAudioPanel').classList.remove('hidden');
+            speakSavedDeckAudioItem(savedDeckAudioSession);
+        }
+
+        function speakSavedDeckAudioItem(session) {
+            if (session !== savedDeckAudioSession || savedDeckAudioStopped || savedDeckAudioPaused) return;
+            if (savedDeckAudioIndex >= savedDeckAudioWords.length) {
+                savedDeckAudioStopped = true;
+                savedDeckAudioPaused = false;
+                document.getElementById('savedDeckAudioTitle').innerText = "Read aloud complete";
+                return;
+            }
+
+            const item = savedDeckAudioWords[savedDeckAudioIndex];
+            const parts = [item.word, item.exampleEn].filter(Boolean);
+            if (savedDeckAudioPartIndex >= parts.length) {
+                savedDeckAudioIndex++;
+                savedDeckAudioPartIndex = 0;
+                speakSavedDeckAudioItem(session);
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(parts[savedDeckAudioPartIndex]);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            utterance.onend = () => {
+                if (session !== savedDeckAudioSession || savedDeckAudioStopped || savedDeckAudioPaused) return;
+                savedDeckAudioPartIndex++;
+                speakSavedDeckAudioItem(session);
+            };
+            utterance.onerror = (event) => {
+                if (session !== savedDeckAudioSession || savedDeckAudioStopped || savedDeckAudioPaused || event.error === 'canceled' || event.error === 'interrupted') return;
+                // Skip a segment that the browser cannot speak, then continue the deck.
+                savedDeckAudioPartIndex++;
+                speakSavedDeckAudioItem(session);
+            };
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function resumeSavedDeckAudio() {
+            if (!('speechSynthesis' in window) || savedDeckAudioWords.length === 0) return;
+
+            // Stop/completion resets playback to the first item.
+            if (savedDeckAudioStopped) {
+                window.speechSynthesis.cancel();
+                savedDeckAudioIndex = 0;
+                savedDeckAudioPartIndex = 0;
+                savedDeckAudioStopped = false;
+                savedDeckAudioPaused = false;
+                savedDeckAudioSession++;
+                speakSavedDeckAudioItem(savedDeckAudioSession);
+                return;
+            }
+
+            if (savedDeckAudioPaused) {
+                // On some Android speech engines resume() can return without audio.
+                // Restart the current segment as a reliable fallback. The item/part cursor
+                // is intentionally preserved so reading continues at the paused word/example.
+                const session = ++savedDeckAudioSession;
+                savedDeckAudioPaused = false;
+                window.speechSynthesis.cancel();
+                // Let cancel settle before putting a new utterance on the speech queue.
+                setTimeout(() => {
+                    if (session !== savedDeckAudioSession || savedDeckAudioPaused || savedDeckAudioStopped) return;
+                    speakSavedDeckAudioItem(session);
+                }, 80);
+            }
+        }
+
+        function pauseSavedDeckAudio() {
+            if (!('speechSynthesis' in window) || savedDeckAudioStopped || savedDeckAudioPaused) return;
+            savedDeckAudioPaused = true;
+            window.speechSynthesis.pause();
+        }
+
+        function stopSavedDeckAudio() {
+            savedDeckAudioSession++;
+            savedDeckAudioStopped = true;
+            savedDeckAudioPaused = false;
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            savedDeckAudioIndex = 0;
+            savedDeckAudioPartIndex = 0;
+            const title = document.getElementById('savedDeckAudioTitle');
+            if (title) title.innerText = 'Stopped';
+        }
+
+        function toggleFavoriteDeck(id) {
+            const decks = getSavedDecks();
+            const deck = decks.find(d => d.id === id);
+            if (deck) {
+                deck.isFavorite = !deck.isFavorite;
+                saveDecksToStorage(decks);
+                renderHistoryList();
+            }
+        }
+
+        function editDeckTitle(id) {
+            const decks = getSavedDecks();
+            const deck = decks.find(d => d.id === id);
+            if (!deck) return;
+
+            const newTitle = prompt("단어장 이름을 입력하세요:", deck.title);
+            if (newTitle !== null && newTitle.trim() !== "") {
+                deck.title = newTitle.trim();
+                saveDecksToStorage(decks);
+                if (currentDeckId === id) {
+                    currentDeckTitle = deck.title;
+                }
+                renderHistoryList();
+            }
+        }
+
+        function loadDeckFromHistory(id) {
+            // Hide the read-aloud controls when switching into study mode.
+            document.getElementById('savedDeckAudioPanel').classList.add('hidden');
+            stopSavedDeckAudio();
+            const decks = getSavedDecks();
+            const selected = decks.find(d => d.id === id);
+            if (selected && selected.words && selected.words.length > 0) {
+                wordsData = [...selected.words];
+                currentDeckId = selected.id;
+                currentDeckTitle = selected.title;
+                currentIndex = 0;
+                closeHistoryModal();
+                showCardView();
+            }
+        }
+
+        function deleteDeckFromHistory(id) {
+            let decks = getSavedDecks();
+            decks = decks.filter(d => d.id !== id);
+            saveDecksToStorage(decks);
+            renderHistoryList();
+        }
+
+        function backToUpload() {
+            document.getElementById('uploadView').classList.remove('hidden');
+            document.getElementById('loadingView').classList.add('hidden');
+            document.getElementById('cardView').classList.add('hidden');
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.add('hidden');
+            document.getElementById('imageInput').value = '';
+            currentDeckId = null;
+            currentDeckTitle = "";
+        }
+
+        function getStoredApiKey() {
+            return localStorage.getItem('gemini_api_key') || HARDCODED_API_KEY || "";
+        }
+
+        function updateApiKeyUI() {
+            const key = getStoredApiKey();
+            const btnText = document.getElementById('apiKeyBtnText');
+            if (key && key.trim() !== "") {
+                btnText.innerText = "API Key 설정됨";
+                btnText.parentElement.classList.remove('border-amber-300', 'bg-amber-50');
+            } else {
+                btnText.innerText = "API Key 입력 필요";
+                btnText.parentElement.classList.add('border-amber-300', 'bg-amber-50');
+            }
+        }
+
+        function openApiKeyModal() {
+            const inputEl = document.getElementById('apiKeyInput');
+            if (inputEl) {
+                inputEl.value = getStoredApiKey();
+            }
+            document.getElementById('apiKeyModal').classList.remove('hidden');
+        }
+
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').classList.add('hidden');
+        }
+
+        function saveApiKey() {
+            const inputVal = document.getElementById('apiKeyInput').value.trim();
+            if (inputVal) {
+                localStorage.setItem('gemini_api_key', inputVal);
+            } else {
+                localStorage.removeItem('gemini_api_key');
+            }
+            updateApiKeyUI();
+            closeApiKeyModal();
+        }
+
+        function openDictionaryModal() {
+            document.getElementById('dictQueryInput').value = '';
+            document.getElementById('dictLoading').classList.add('hidden');
+            document.getElementById('dictResultArea').classList.add('hidden');
+            document.getElementById('dictAddAction').classList.add('hidden');
+            document.getElementById('dictionaryModal').classList.remove('hidden');
+            document.getElementById('dictQueryInput').focus();
+        }
+
+        function closeDictionaryModal() {
+            document.getElementById('dictionaryModal').classList.add('hidden');
+        }
+
+        async function lookupDictionaryWord() {
+            const query = document.getElementById('dictQueryInput').value.trim();
+            if (!query) return;
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey) {
+                openApiKeyModal();
+                return;
+            }
+
+            document.getElementById('dictLoading').classList.remove('hidden');
+            document.getElementById('dictResultArea').classList.add('hidden');
+            document.getElementById('dictAddAction').classList.add('hidden');
+
+            const systemPrompt = "You are a professional English dictionary and phonetic expert. Provide information for the requested word in valid JSON format only, with keys: word, phonetic (IPA format like [wɜːrd]), meaning (Korean meaning), exampleEn (simple example sentence in English), exampleKo (Korean translation of example). Return ONLY raw JSON or JSON enclosed in ```json ``` code blocks.";
+            const userQuery = `Provide dictionary information for the word: "${query}" in JSON format.`;
+
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorDetails = await response.text();
+                    if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
+                    }
+                    throw new Error(`API 요청 실패 (${response.status})`);
+                }
+
+                const result = await response.json();
+                let text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    // Robust JSON extraction using regex for both free and paid keys
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const jsonMatch = text.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        currentDictWord = JSON.parse(jsonMatch[0]);
+                    } else {
+                        currentDictWord = JSON.parse(text);
+                    }
+
+                    document.getElementById('dictResWord').innerText = currentDictWord.word || query;
+                    document.getElementById('dictResPhonetic').innerText = currentDictWord.phonetic || "[ - ]";
+                    document.getElementById('dictResMeaning').innerText = currentDictWord.meaning || "뜻 없음";
+                    document.getElementById('dictResExampleEn').innerText = currentDictWord.exampleEn || query;
+                    document.getElementById('dictResExampleKo').innerText = currentDictWord.exampleKo || "";
+
+                    document.getElementById('dictLoading').classList.add('hidden');
+                    document.getElementById('dictResultArea').classList.remove('hidden');
+                    document.getElementById('dictAddAction').classList.remove('hidden');
+                } else {
+                    alert("결과를 찾을 수 없습니다.");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("단어 정보를 해석하는 중 오류가 발생했습니다. 다시 시도해 주세요.");
+            } finally {
+                document.getElementById('dictLoading').classList.add('hidden');
+            }
+        }
+
+        function speakDictWord() {
+            if (!currentDictWord || !('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(currentDictWord.word);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.9;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function addDictWordToStudyDeck() {
+            if (!currentDictWord) return;
+            wordsData.push(currentDictWord);
+            currentIndex = wordsData.length - 1;
+            saveDeckToHistory(currentDeckTitle, wordsData, currentDeckId);
+            showCardView();
+            closeDictionaryModal();
+        }
+
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const apiKey = getStoredApiKey();
+            if (!apiKey || apiKey.trim() === "") {
+                openApiKeyModal();
+                event.target.value = '';
+                return;
+            }
+
+            showLoading("Gemini AI로 이미지 분석 및 단어 추출 중...");
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                try {
+                    await extractWordsFromImage(base64Data, file.type, apiKey);
+                } catch (err) {
+                    console.error("Extraction error:", err);
+                    backToUpload();
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function extractWordsFromImage(base64Data, mimeType, apiKey) {
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of a vocabulary list. Extract all English words visible in the image. For each word, provide its IPA phonetic transcription (phonetic, e.g., [æpəl]), its Korean meaning (meaning), 1 simple example sentence in English (exampleEn), and its Korean translation (exampleKo). Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
+            const userQuery = "Extract all English words from this image along with phonetic transcriptions, meanings, and examples in JSON format.";
+
+            const payload = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: userQuery },
+                            { inlineData: { mimeType: mimeType, data: base64Data } }
+                        ]
+                    }
+                ],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            try {
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    if (response.status === 429 || errText.includes("RESOURCE_EXHAUSTED") || errText.includes("quota")) {
+                        alert(OVERQUOTA_MSG);
+                    } else {
+                        alert(`API 오류 (${response.status}): ${errText}`);
+                    }
+                    throw new Error(`API 오류 (${response.status})`);
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    let text = candidate.content.parts[0].text;
+                    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                    const jsonMatch = text.match(/\[[\s\S]*\]/);
+                    let parsed;
+                    if (jsonMatch) {
+                        parsed = JSON.parse(jsonMatch[0]);
+                    } else {
+                        parsed = JSON.parse(text);
+                    }
+
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        wordsData = parsed;
+                        currentIndex = 0;
+                        currentDeckId = null;
+                        
+                        const decks = getSavedDecks();
+                        const autoTitle = `단어장 ${decks.length + 1}`;
+                        saveDeckToHistory(autoTitle, wordsData);
+
+                        showCardView();
+                        return;
+                    }
+                }
+                alert("이미지에서 단어를 추출하지 못했습니다. 더 선명한 이미지로 시도해 주세요.");
+            } catch (err) {
+                console.error(err);
+                backToUpload();
+            }
+        }
+
+        function showTestSummary() {
+            window.speechSynthesis.cancel();
+            document.getElementById('testView').classList.add('hidden');
+            document.getElementById('testSummaryView').classList.remove('hidden');
+
+            incorrectWords = [];
+            let correctCount = 0;
+
+            const listContainer = document.getElementById('testResultList');
+            listContainer.innerHTML = '';
+
+            testWords.forEach((item, idx) => {
+                const userAns = userAnswers[idx] || '';
+                const isCorrect = userAns.trim().toLowerCase() === item.word.trim().toLowerCase();
+
+                if (isCorrect) {
+                    correctCount++;
+                } else {
+                    incorrectWords.push(item);
+                }
+
+                const resultCard = document.createElement('div');
+                resultCard.className = `p-3 rounded-2xl border ${isCorrect ? 'bg-emerald-50/60 border-emerald-200' : 'bg-rose-50/60 border-rose-200'}`;
+
+                resultCard.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid ${isCorrect ? 'fa-circle-check text-emerald-600' : 'fa-circle-xmark text-rose-600'} text-base"></i>
+                            <span class="font-extrabold text-sm text-slate-800">${item.word}</span>
+                            <span class="text-xs text-indigo-500 font-mono">${item.phonetic || ''}</span>
+                        </div>
+                        <button type="button" onclick="playSpecificAudio('${item.word.replace(/'/g, "\\'")}', '${item.exampleEn.replace(/'/g, "\\'")}')" class="w-6 h-6 bg-white hover:bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs shadow-sm border border-slate-200 transition">
+                            <i class="fa-solid fa-volume-high text-[10px]"></i>
