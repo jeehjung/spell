@@ -280,10 +280,11 @@
                     <button id="bookReadingPlayPauseBtn" type="button" onclick="playBookReading()" aria-label="재생" title="재생" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i id="bookReadingPlayPauseIcon" class="fa-solid fa-play" aria-hidden="true"></i></button>
                     <button type="button" onclick="stopBookReading()" aria-label="정지" title="정지" class="bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-stop" aria-hidden="true"></i></button>
                 </div>
-                <p id="bookReadingStatus" class="text-sm font-bold text-amber-700 mb-2">읽을 준비가 되었어요.</p>
+                <p id="bookReadingStatus" class="text-sm font-bold text-slate-600 mb-2">읽을 준비가 되었어요.</p>
                 <div class="mb-3 rounded-xl bg-slate-50 border border-slate-200 p-3" aria-label="읽기 진행률">
                     <div class="flex items-center justify-between gap-2 mb-2">
                         <span class="text-xs font-bold text-slate-600">읽기 진행률</span>
+                        <span id="bookReadingProgressLabel" class="text-xs font-bold text-slate-600">0%</span>
                     </div>
                     <div class="relative w-full py-2">
                         <div class="w-full h-2.5 bg-slate-200 rounded-full overflow-hidden pointer-events-none" role="progressbar" aria-label="읽기 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="bookReadingProgressTrack">
@@ -1848,6 +1849,7 @@
             if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
         function updateBookReadingProgress() {
+            const label = document.getElementById('bookReadingProgressLabel');
             const fill = document.getElementById('bookReadingProgressFill');
             const track = document.getElementById('bookReadingProgressTrack');
             const slider = document.getElementById('bookReadingSeekSlider');
@@ -1855,6 +1857,7 @@
             const totalChars = String(bookReadingText || '').length;
             const position = Math.max(0, Math.min(bookReadingChunkCharIndex, totalChars));
             const percent = totalChars ? Math.round(position / totalChars * 1000) / 10 : 0;
+            if (label) label.textContent = `${Math.round(percent)}%`;
             if (fill) fill.style.width = `${percent}%`;
             if (track) track.setAttribute('aria-valuenow', String(Math.round(percent)));
             if (slider && document.activeElement !== slider) slider.value = String(percent);
