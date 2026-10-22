@@ -166,9 +166,13 @@
                     </button>
                 </div>
 
-                <div class="border-t border-slate-100 pt-4 mb-5">
+                <div class="border-t border-slate-100 pt-4 mb-3">
                     <span class="text-sm font-bold text-slate-500 uppercase tracking-wider block mb-2">뜻 (Meaning)</span>
                     <p id="cardMeaning" class="font-bold text-slate-800">사과</p>
+                </div>
+                <div id="cardSynAnt" class="hidden border-t border-slate-100 pt-3 mb-4 space-y-1.5">
+                    <p class="text-sm text-slate-700"><span class="font-extrabold text-indigo-700">유의어</span><span class="text-slate-400 mx-1">·</span><span id="cardSynonyms"></span></p>
+                    <p class="text-sm text-slate-700"><span class="font-extrabold text-rose-700">반의어</span><span class="text-slate-400 mx-1">·</span><span id="cardAntonyms"></span></p>
                 </div>
 
                 <!-- Navigation Controls inside Card -->
@@ -220,7 +224,6 @@
         <!-- Book Reading Mode -->
         <div id="bookReadingView" class="hidden w-full max-w-xl flex-col gap-3 my-auto">
             <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100">
-                <h2 class="text-2xl font-black text-slate-900 mb-2"><i class="fa-solid fa-book-open-reader text-amber-500 mr-2"></i>책읽기모드</h2>
                 <p class="text-sm text-slate-500 mb-4">사진에서 추출한 영어 본문을 처음부터 끝까지 읽습니다. 상단의 전체 읽기 속도를 조절할 수 있어요.</p>
                 <div class="grid grid-cols-2 gap-2 mb-4">
                     <button type="button" onclick="playBookReading()" aria-label="처음부터 재생" title="처음부터 재생" class="bg-amber-500 hover:bg-amber-600 text-white font-bold px-3 py-3 rounded-xl"><i class="fa-solid fa-play" aria-hidden="true"></i></button>
@@ -428,6 +431,10 @@
                     <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">예문 (Example)</span>
                     <p id="dictResExampleEn" class="text-xs text-slate-800 font-medium mt-0.5">Example sentence.</p>
                     <p id="dictResExampleKo" class="text-xs text-slate-500 mt-0.5">예문 해석</p>
+                </div>
+                <div id="dictResSynAnt" class="hidden border-t border-slate-200 pt-2 space-y-1">
+                    <p class="text-xs text-slate-700"><span class="font-extrabold text-indigo-700">유의어</span><span class="text-slate-400 mx-1">·</span><span id="dictResSynonyms"></span></p>
+                    <p class="text-xs text-slate-700"><span class="font-extrabold text-rose-700">반의어</span><span class="text-slate-400 mx-1">·</span><span id="dictResAntonyms"></span></p>
                 </div>
             </div>
 
@@ -687,6 +694,12 @@
             if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
         }
 
+        function normalizeWordList(value) {
+            if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean).slice(0, 5);
+            if (typeof value === 'string') return value.split(/[,;\n]/).map(item => item.replace(/^[-•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, 5);
+            return [];
+        }
+
         function showDictionaryWord(data, fallbackWord, saveToHistory = false) {
             currentDictWord = data;
             if (saveToHistory) saveDictionaryHistory(fallbackWord, data);
@@ -698,6 +711,11 @@
             document.getElementById('dictResMeaning').innerText = data.meaning || (isKoreanQuery ? (data.word || fallbackWord) : "뜻 없음");
             document.getElementById('dictResExampleEn').innerText = data.exampleEn || fallbackWord;
             document.getElementById('dictResExampleKo').innerText = data.exampleKo || "";
+            const dictSynonyms = normalizeWordList(data.synonyms);
+            const dictAntonyms = normalizeWordList(data.antonyms);
+            document.getElementById('dictResSynonyms').innerText = dictSynonyms.join(', ') || '정보 없음';
+            document.getElementById('dictResAntonyms').innerText = dictAntonyms.join(', ') || '정보 없음';
+            document.getElementById('dictResSynAnt').classList.toggle('hidden', !dictSynonyms.length && !dictAntonyms.length);
             document.getElementById('dictLoading').classList.add('hidden');
             document.getElementById('dictResultArea').classList.remove('hidden');
             document.getElementById('dictAddAction').classList.remove('hidden');
@@ -1110,6 +1128,8 @@
                     phonetic: String(item.phonetic || '').trim(),
                     stressPattern: String(item.stressPattern || '').trim(),
                     meaning: String(item.meaning || '').trim(),
+                    synonyms: normalizeWordList(item.synonyms),
+                    antonyms: normalizeWordList(item.antonyms),
                     exampleEn: String(item.exampleEn || '').trim(),
                     exampleKo: String(item.exampleKo || '').trim()
                 })).filter(item => {
@@ -2258,6 +2278,11 @@
             stressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
             stressEl.classList.remove('hidden');
             document.getElementById('cardMeaning').innerText = item.meaning;
+            const cardSynonyms = normalizeWordList(item.synonyms);
+            const cardAntonyms = normalizeWordList(item.antonyms);
+            document.getElementById('cardSynonyms').innerText = cardSynonyms.join(', ') || '정보 없음';
+            document.getElementById('cardAntonyms').innerText = cardAntonyms.join(', ') || '정보 없음';
+            document.getElementById('cardSynAnt').classList.toggle('hidden', !cardSynonyms.length && !cardAntonyms.length);
             document.getElementById('cardExampleEn').innerText = item.exampleEn;
             document.getElementById('cardExampleKo').innerText = item.exampleKo;
 
