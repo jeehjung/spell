@@ -1096,96 +1096,8 @@
         const DAILY_WORDS_STORAGE_KEY = 'spell_daily_words_v1';
         const DAILY_WORD_HISTORY_STORAGE_KEY = 'spell_daily_word_history_v1';
         const DAILY_WORD_HISTORY_DAYS = 30;
-        const DAILY_WORD_HISTORY_MAX_RETRIES = 3;
+        const MAX_DAILY_WORD_SUPPLEMENT_ATTEMPTS = 3;
         const MAX_SAVED_DECKS = 100;
-
-        function normalizeDailyWordKey(word) {
-            return String(word || '').normalize('NFKC').trim().toLocaleLowerCase();
-        }
-
-        function getDailyWordHistoryCutoffKey() {
-            const cutoff = new Date();
-            cutoff.setHours(12, 0, 0, 0);
-            cutoff.setDate(cutoff.getDate() - (DAILY_WORD_HISTORY_DAYS - 1));
-            return getLocalDateKey(cutoff);
-        }
-
-        function loadRecentDailyWordHistory() {
-            const today = getLocalDateKey();
-            const cutoff = getDailyWordHistoryCutoffKey();
-            let storedEntries = [];
-
-            try {
-                const saved = JSON.parse(localStorage.getItem(DAILY_WORD_HISTORY_STORAGE_KEY) || 'null');
-                if (saved && Array.isArray(saved.entries)) storedEntries = saved.entries;
-            } catch (e) {
-                console.warn('오늘의 단어 중복 방지 이력을 읽지 못했습니다.', e);
-            }
-
-            const byDate = new Map();
-            const addEntry = (date, words) => {
-                if (typeof date !== 'string' || date < cutoff || date > today || !Array.isArray(words)) return;
-                if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
-                const existing = byDate.get(date) || new Map();
-                words.forEach(word => {
-                    const value = String(word || '').trim();
-                    const key = normalizeDailyWordKey(value);
-                    if (key && !existing.has(key)) existing.set(key, value);
-                });
-                byDate.set(date, existing);
-            };
-
-            storedEntries.forEach(entry => {
-                if (entry) addEntry(entry.date, entry.words);
-            });
-
-            // Bootstrap the new history from existing saved "Today's Words" decks.
-            // This preserves recent history that was already archived before this feature was added.
-            try {
-                getSavedDecks().forEach(deck => {
-                    const match = String(deck?.title || '').match(/^오늘의 단어 (\d{4}-\d{2}-\d{2})$/);
-                    if (match && Array.isArray(deck.words)) {
-                        addEntry(match[1], deck.words.map(item => typeof item === 'string' ? item : item?.word));
-                    }
-                });
-            } catch (e) {
-                console.warn('저장된 단어장에서 과거 오늘의 단어 이력을 가져오지 못했습니다.', e);
-            }
-
-            return Array.from(byDate.entries())
-                .map(([date, words]) => ({ date, words: Array.from(words.values()) }))
-                .sort((a, b) => a.date.localeCompare(b.date));
-        }
-
-        function saveDailyWordsToHistory(date, words) {
-            try {
-                const entries = loadRecentDailyWordHistory();
-                const byDate = new Map(entries.map(entry => [entry.date, entry.words]));
-                const combined = new Map();
-                [...(byDate.get(date) || []), ...(Array.isArray(words) ? words : [])].forEach(word => {
-                    const value = String(typeof word === 'string' ? word : word?.word || '').trim();
-                    const key = normalizeDailyWordKey(value);
-                    if (key && !combined.has(key)) combined.set(key, value);
-                });
-                byDate.set(date, Array.from(combined.values()));
-
-                const cutoff = getDailyWordHistoryCutoffKey();
-                const today = getLocalDateKey();
-                const entriesToSave = Array.from(byDate.entries())
-                    .filter(([entryDate]) => entryDate >= cutoff && entryDate <= today)
-                    .sort(([a], [b]) => a.localeCompare(b))
-                    .map(([entryDate, entryWords]) => ({ date: entryDate, words: entryWords }));
-
-                localStorage.setItem(DAILY_WORD_HISTORY_STORAGE_KEY, JSON.stringify({
-                    version: 1,
-                    entries: entriesToSave
-                }));
-                updateStorageUsageDisplay();
-            } catch (e) {
-                // The daily word list can still be used if history storage fails.
-                console.warn('오늘의 단어 중복 방지 이력을 저장하지 못했습니다.', e);
-            }
-        }
 
         function getLocalDateKey(date = new Date()) {
             const year = date.getFullYear();
@@ -1205,14 +1117,64 @@
             }
         }
 
+        function getRecentDailyWordHistory() {
+            try {
+                const stored = JSON.parse(localStorage.getItem(DAILY_WORD_HISTORY_STORAGE_KEY) || 'null');
+                const entries = Array.isArray(stored?.entries) ? stored.entries : [];
+                const cutoff = new Date();
+                cutoff.setHours(0, 0, 0, 0);
+                cutoff.setDate(cutoff.getDate() - (DAILY_WORD_HISTORY_DAYS - 1));
+                const cutoffKey = getLocalDateKey(cutoff);
+                return entries.filter(entry =>
+                    entry && typeof entry.date === 'string' && entry.date >= cutoffKey &&
+                    Array.isArray(entry.words)
+                );
+            } catch (e) {
+                console.warn('최근 오늘의 단어 기록을 읽지 못했습니다.', e);
+                return [];
+            }
+        }
+
+        function getRecentDailyWordSet() {
+            const words = new Set();
+            getRecentDailyWordHistory().forEach(entry => {
+                entry.words.forEach(word => {
+                    const key = String(word || '').trim().toLocaleLowerCase();
+                    if (key) words.add(key);
+                });
+            });
+            return words;
+        }
+
+        function saveDailyWordHistory(date, words) {
+            try {
+                const existing = getRecentDailyWordHistory();
+                const entry = {
+                    date,
+                    words: [...new Set(words.map(item =>
+                        String(typeof item === 'string' ? item : item?.word || '').trim().toLocaleLowerCase()
+                    ).filter(Boolean))]
+                };
+                const entries = existing.filter(item => item.date !== date);
+                entries.push(entry);
+                entries.sort((a, b) => a.date.localeCompare(b.date));
+                localStorage.setItem(DAILY_WORD_HISTORY_STORAGE_KEY, JSON.stringify({
+                    version: 1,
+                    entries: entries.slice(-DAILY_WORD_HISTORY_DAYS)
+                }));
+            } catch (e) {
+                console.warn('오늘의 단어 중복 방지 기록을 저장하지 못했습니다.', e);
+            }
+        }
+
         async function startDailyWordStudy() {
             const todayRecord = loadDailyWordsRecord();
             if (todayRecord) {
-                saveDailyWordsToHistory(todayRecord.date, todayRecord.words);
+                // Migrate today's deck into the history if it predates this feature.
+                saveDailyWordHistory(todayRecord.date, todayRecord.words);
                 let decks = getSavedDecks();
                 let deck = decks.find(item => item.id === todayRecord.deckId);
                 if (!deck) {
-                    // If the user removed the deck from the archive, restore today's exact saved set.
                     wordsData = [...todayRecord.words];
                     currentDeckId = null;
                     currentDeckTitle = `오늘의 단어 ${todayRecord.date}`;
@@ -1240,31 +1202,23 @@
                 return;
             }
 
-            const recentHistory = loadRecentDailyWordHistory();
-            const excludedWordKeys = new Set();
-            recentHistory.forEach(entry => entry.words.forEach(word => {
-                const key = normalizeDailyWordKey(word);
-                if (key) excludedWordKeys.add(key);
-            }));
-
-            showLoading('최근 30일간 생성한 단어를 제외해 오늘의 영어 단어 10개를 만드는 중...');
+            showLoading('최근 30일간 배운 단어를 제외하고 오늘의 영어 단어 10개를 만드는 중...');
             try {
                 const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select varied, useful words suitable for Grade 2 international-school students; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning, exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), and antonyms (array of 1-5 common English antonyms). Use empty arrays if none are appropriate. In meaning, give the common Korean meanings in numbered lines, with the most common/representative meaning first; label the part of speech where useful, matching the concise format used for words extracted from an image. Do not add explanatory details or usage notes in parentheses. In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Always exclude any target vocabulary word explicitly listed in the exclusion list in the user message, including case-insensitive matches. Return ONLY a valid JSON array with exactly the number of objects requested in the user message. Do not use markdown fences.';
+                const userQuery = baseUserQuery + '\nGenerate exactly ' + count + ' distinct words. ' + exclusionText;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                const seen = getRecentDailyWordSet();
+                const generatedWords = [];
 
-                const baseUserQuery = 'Generate vocabulary words suitable for a child in Grade 2 at an international school who has already completed English kindergarten. The words should be a clear step above basic everyday vocabulary and support classroom learning, reading comprehension, science, social studies, and expressive writing. Include the keys word, phonetic, stressPattern, meaning, synonyms, antonyms, exampleEn, exampleKo for every word. For meaning, use numbered lines for common Korean meanings, most common/representative meaning first, with part-of-speech labels where useful; do not add detailed explanations in parentheses. stressPattern must use hyphens between syllables and ALL CAPS for the stressed syllable.';
-
-                async function requestDailyWordBatch(count, excludedKeys) {
-                    const excludedWords = Array.from(excludedKeys);
-                    const exclusionText = excludedWords.length
-                        ? '\nDo not include any of these words or case variants: ' + excludedWords.join(', ') + '.'
-                        : '\nNo previously generated words need to be excluded.';
-                    const userQuery = baseUserQuery + '\nGenerate exactly ' + count + ' distinct words. ' + exclusionText;
-                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+                for (let attempt = 0; attempt <= MAX_DAILY_WORD_SUPPLEMENT_ATTEMPTS && generatedWords.length < 10; attempt++) {
+                    const remaining = 10 - generatedWords.length;
+                    const excludedList = [...seen].join(', ');
+                    const requestText = `${userQuery}\n\nDo not return any of these previously used words (case-insensitive): ${excludedList || 'none'}. Generate 10 candidates so we can select ${remaining} new word(s). Avoid repeating any word from this list and choose fresh, useful Grade 2 / early Grade 3 vocabulary.`;
                     const response = await fetch(apiUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            contents: [{ role: 'user', parts: [{ text: userQuery }] }],
+                            contents: [{ role: 'user', parts: [{ text: requestText }] }],
                             systemInstruction: { parts: [{ text: systemPrompt }] },
                             generationConfig: { responseMimeType: 'application/json' }
                         })
@@ -1273,12 +1227,13 @@
                     if (!response.ok) {
                         const errText = await response.text();
                         if (response.status === 503 || errText.includes('UNAVAILABLE')) {
-                            throw new Error(UNAVAILABLE_MSG);
+                            alert(UNAVAILABLE_MSG);
+                        } else if (response.status === 429 || errText.includes('RESOURCE_EXHAUSTED') || errText.toLowerCase().includes('quota')) {
+                            alert(OVERQUOTA_MSG);
+                        } else {
+                            alert(`API 오류 (${response.status}): ${errText}`);
                         }
-                        if (response.status === 429 || errText.includes('RESOURCE_EXHAUSTED') || errText.toLowerCase().includes('quota')) {
-                            throw new Error(OVERQUOTA_MSG);
-                        }
-                        throw new Error(`API 오류 (${response.status}): ${errText}`);
+                        throw new Error(`오늘의 단어 생성 API 오류 (${response.status})`);
                     }
 
                     const result = await response.json();
@@ -1286,37 +1241,26 @@
                     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
                     const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
                     if (!Array.isArray(parsed)) {
-                        throw new Error('AI가 단어 목록을 올바른 형식으로 반환하지 않았습니다.');
-                    }
-                    return parsed.map(item => ({
-                        word: String(item?.word || '').trim(),
-                        phonetic: String(item?.phonetic || '').trim(),
-                        stressPattern: String(item?.stressPattern || '').trim(),
-                        meaning: String(item?.meaning || '').trim(),
-                        synonyms: normalizeWordList(item?.synonyms),
-                        antonyms: normalizeWordList(item?.antonyms),
-                        exampleEn: String(item?.exampleEn || '').trim(),
-                        exampleKo: String(item?.exampleKo || '').trim()
-                    }));
-                }
-
-                const generatedWords = [];
-                const acceptedWordKeys = new Set(excludedWordKeys);
-                let requestedCount = 10;
-
-                for (let attempt = 0; attempt <= DAILY_WORD_HISTORY_MAX_RETRIES && generatedWords.length < 10; attempt++) {
-                    requestedCount = 10 - generatedWords.length;
-                    if (attempt > 0) {
-                        showLoading(`중복 단어를 제외하고 새 단어를 보충하는 중... (${generatedWords.length}/10)`);
+                        throw new Error('AI가 단어 목록을 올바르게 반환하지 않았습니다.');
                     }
 
-                    const batch = await requestDailyWordBatch(requestedCount, acceptedWordKeys);
-                    batch.forEach(item => {
-                        const key = normalizeDailyWordKey(item.word);
-                        if (!key || !item.meaning || !item.exampleEn || !item.exampleKo || acceptedWordKeys.has(key)) return;
-                        acceptedWordKeys.add(key);
-                        generatedWords.push(item);
-                    });
+                    for (const item of parsed) {
+                        const normalized = {
+                            word: String(item.word || '').trim(),
+                            phonetic: String(item.phonetic || '').trim(),
+                            stressPattern: String(item.stressPattern || '').trim(),
+                            meaning: String(item.meaning || '').trim(),
+                            synonyms: normalizeWordList(item.synonyms),
+                            antonyms: normalizeWordList(item.antonyms),
+                            exampleEn: String(item.exampleEn || '').trim(),
+                            exampleKo: String(item.exampleKo || '').trim()
+                        };
+                        const key = normalized.word.toLocaleLowerCase();
+                        if (!normalized.word || !normalized.meaning || !normalized.exampleEn || !normalized.exampleKo ||
+                            seen.has(key) || generatedWords.length >= 10) continue;
+                        seen.add(key);
+                        generatedWords.push(normalized);
+                    }
                 }
 
                 if (generatedWords.length !== 10) {
@@ -1335,19 +1279,16 @@
                     words: [...wordsData]
                 };
                 localStorage.setItem(DAILY_WORDS_STORAGE_KEY, JSON.stringify(record));
-                saveDailyWordsToHistory(record.date, record.words);
+                saveDailyWordHistory(record.date, record.words);
                 enterRecognizedWordsStudyMode();
             } catch (err) {
                 console.error('오늘의 단어 생성 오류:', err);
-                const visibleError = err.message && (err.message.startsWith('생성된 단어') || err.message.startsWith('최근 30일') || err.message.startsWith('API 오류 (') || err.message === UNAVAILABLE_MSG || err.message === OVERQUOTA_MSG)
-                    ? err.message
-                    : '오늘의 단어를 만들지 못했습니다. API Key와 연결 상태를 확인한 뒤 다시 시도해 주세요.';
-                alert(visibleError);
+                alert(err.message && err.message.startsWith('최근 30일') ? err.message : '오늘의 단어를 만들지 못했습니다. API Key와 연결 상태를 확인한 뒤 다시 시도해 주세요.');
                 backToUpload();
             }
         }
 
-        function openHistoryModal() {
+                function openHistoryModal() {
             renderHistoryList();
             document.getElementById('historyModal').classList.remove('hidden');
         }
