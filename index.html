@@ -1745,7 +1745,7 @@
 
             // The script is displayed as a continuous passage. Only the word at the current
             // speech boundary is highlighted; the text is never split into audio chunks.
-            const tokens = text.match(/\\S+\\s*/g) || [];
+            const tokens = text.match(/\S+\s*/g) || [];
             let offset = 0;
             container.innerHTML = tokens.map((token) => {
                 const start = offset;
