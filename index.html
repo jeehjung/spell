@@ -609,6 +609,7 @@
         let bookReadingRunId = 0;
         let bookReadingChunks = [];
         let bookReadingChunkIndex = 0;
+        let bookReadingChunkCharIndex = 0;
         let bookReadingPaused = false;
 
         // Cache is used only by AI autofill; dictionary search results are never cached.
@@ -1226,7 +1227,11 @@
                 document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요 · 처음부터 읽기 또는 이어 읽기를 누르세요.';
                 ['uploadView','loadingView','cardView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => document.getElementById(id).classList.add('hidden'));
                 document.getElementById('bookReadingView').classList.remove('hidden'); document.getElementById('bookReadingView').classList.add('flex');
-            } else { showCardView(); }
+            } else {
+                const bookView = document.getElementById('bookReadingView');
+                if (bookView) { bookView.classList.add('hidden'); bookView.classList.remove('flex'); }
+                showCardView();
+            }
         }
 
         function deleteDeckFromHistory(id) {
@@ -1769,6 +1774,7 @@
             bookReadingRunId++;
             bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
             bookReadingChunkIndex = 0;
+            bookReadingChunkCharIndex = 0;
             bookReadingPaused = false;
             speakNextBookChunk(bookReadingRunId);
         }
@@ -1777,15 +1783,32 @@
             if (runId !== bookReadingRunId || bookReadingPaused) return;
             if (bookReadingChunkIndex >= bookReadingChunks.length) {
                 bookReadingPaused = false;
+                bookReadingChunkCharIndex = 0;
                 document.getElementById('bookReadingStatus').textContent = '끝까지 다 읽었습니다. 재생을 누르면 처음부터 다시 읽습니다.';
                 return;
             }
-            const utterance = new SpeechSynthesisUtterance(bookReadingChunks[bookReadingChunkIndex]);
+            const chunk = bookReadingChunks[bookReadingChunkIndex];
+            const startCharIndex = Math.min(bookReadingChunkCharIndex, chunk.length);
+            const remainingText = chunk.slice(startCharIndex).trimStart();
+            if (!remainingText) {
+                bookReadingChunkIndex++;
+                bookReadingChunkCharIndex = 0;
+                speakNextBookChunk(runId);
+                return;
+            }
+            const leadingWhitespace = chunk.slice(startCharIndex).length - chunk.slice(startCharIndex).trimStart().length;
+            const utterance = new SpeechSynthesisUtterance(remainingText);
             utterance.lang = 'en-US';
             utterance.rate = getSpeechRate();
+            utterance.onboundary = (event) => {
+                if (runId !== bookReadingRunId || bookReadingPaused || typeof event.charIndex !== 'number') return;
+                // Save the current word position so pause/resume continues near the interruption point.
+                bookReadingChunkCharIndex = Math.min(startCharIndex + leadingWhitespace + event.charIndex, chunk.length);
+            };
             utterance.onend = () => {
                 if (runId !== bookReadingRunId || bookReadingPaused) return;
                 bookReadingChunkIndex++;
+                bookReadingChunkCharIndex = 0;
                 speakNextBookChunk(runId);
             };
             utterance.onerror = (event) => {
@@ -1837,6 +1860,7 @@
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
             // 정지 후 재생은 항상 처음부터 시작하도록 위치를 초기화한다.
             bookReadingChunkIndex = 0;
+            bookReadingChunkCharIndex = 0;
             const status = document.getElementById('bookReadingStatus');
             if (status) status.textContent = '읽기를 정지했어요. 재생을 누르면 처음부터 읽습니다.';
         }
@@ -2575,6 +2599,8 @@
         function showCardView() {
             document.getElementById('uploadView').classList.add('hidden');
             document.getElementById('loadingView').classList.add('hidden');
+            const bookView = document.getElementById('bookReadingView');
+            if (bookView) { bookView.classList.add('hidden'); bookView.classList.remove('flex'); }
             document.getElementById('testView').classList.add('hidden');
             document.getElementById('testSummaryView').classList.add('hidden');
             document.getElementById('vocabularyQuizView').classList.add('hidden');
