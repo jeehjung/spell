@@ -1818,7 +1818,7 @@
             const text = String(bookReadingText || '');
             if (!text.length) return 0;
             const safePosition = Math.max(0, Math.min(Number(position) || 0, text.length - 1));
-            const tokenPattern = /\\S+\\s*/g;
+            const tokenPattern = /\S+\s*/g;
             let match;
             while ((match = tokenPattern.exec(text)) !== null) {
                 if (safePosition >= match.index && safePosition < match.index + match[0].length) {
