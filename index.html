@@ -98,8 +98,6 @@
                     <i class="fa-solid fa-images text-xl"></i>
                     <span>사진 라이브러리에서 선택</span>
                 </button>
-                <button type="button" onclick="setReadingModeAndChooseImage('book'); document.getElementById('cameraInput').click()" class="cursor-pointer w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-6 rounded-2xl transition shadow-lg inline-flex items-center justify-center gap-3 text-base"><i class="fa-solid fa-book-open-reader text-xl"></i><span>한번에 읽기 모드 · 사진 촬영</span></button>
-                <button type="button" onclick="setReadingModeAndChooseImage('book'); document.getElementById('imageInput').click()" class="cursor-pointer w-full bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-800 border-2 border-amber-200 font-bold py-3 px-6 rounded-2xl transition inline-flex items-center justify-center gap-3 text-sm"><i class="fa-solid fa-images"></i><span>한번에 읽기 모드 · 사진 선택</span></button>
                 <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
                 <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
             </div>
@@ -192,6 +190,20 @@
                 <button type="button" onclick="openWordEditorModal(-1)" class="w-full mt-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-2 rounded-xl border border-indigo-200 transition text-xs flex items-center justify-center gap-1.5">
                     <i class="fa-solid fa-plus"></i> 새 단어 직접 추가하기
                 </button>
+            </div>
+        </div>
+
+        <!-- Choose study mode after photo recognition -->
+        <div id="imageModeChoiceView" class="hidden w-full max-w-xl flex-col gap-3 my-auto">
+            <div class="bg-white rounded-3xl p-6 sm:p-8 card-shadow border border-slate-100 text-center">
+                <div class="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl"><i class="fa-solid fa-check-double"></i></div>
+                <h2 class="text-2xl font-black text-slate-900 mb-2">사진 인식 완료</h2>
+                <p class="text-sm text-slate-500 mb-6">어떤 방식으로 공부할까요?</p>
+                <div class="grid grid-cols-1 gap-3">
+                    <button type="button" onclick="chooseRecognizedStudyMode('words')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-layer-group text-xl"></i><span>단어 공부 모드</span></button>
+                    <button type="button" onclick="chooseRecognizedStudyMode('book')" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-extrabold py-4 px-5 rounded-2xl inline-flex items-center justify-center gap-3"><i class="fa-solid fa-book-open-reader text-xl"></i><span>한번에 읽기 모드</span></button>
+                </div>
+                <p id="imageModeChoiceStatus" class="text-xs text-slate-500 mt-4">단어·숙어와 영어 본문을 인식했어요.</p>
             </div>
         </div>
 
@@ -598,7 +610,6 @@
         let bookReadingRunId = 0;
         let bookReadingChunks = [];
         let bookReadingChunkIndex = 0;
-        let selectedImageReadingMode = 'vocabulary';
 
         // Cache is used only by AI autofill; dictionary search results are never cached.
         const WORD_INFO_CACHE_KEY = 'spell_word_info_cache_v1';
@@ -1254,6 +1265,8 @@
             document.getElementById('testSummaryView').classList.add('hidden');
             document.getElementById('vocabularyQuizView').classList.add('hidden');
             document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+            const choiceView = document.getElementById('imageModeChoiceView');
+            if (choiceView) { choiceView.classList.add('hidden'); choiceView.classList.remove('flex'); }
             const bookView = document.getElementById('bookReadingView');
             if (bookView) { bookView.classList.add('hidden'); bookView.classList.remove('flex'); }
             document.getElementById('imageInput').value = '';
@@ -1646,35 +1659,16 @@
             }
             if (imageRecognitionActive) return;
 
-            const readingMode = selectedImageReadingMode;
-            selectedImageReadingMode = 'vocabulary';
-            showLoading(readingMode === 'book' ? '사진 속 영어 본문을 처음부터 끝까지 추출하는 중...' : '이미지를 기기에 임시 저장했어요. Gemini AI로 인식 중...');
+            showLoading('사진을 인식하고 학습 모드를 준비하는 중...');
 
             const reader = new FileReader();
             reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
                 imageRecognitionActive = true;
                 try {
-                    if (readingMode === 'book') {
-                        bookReadingText = await extractBookTextFromImage(base64Data, file.type || 'image/jpeg', apiKey);
-                        if (!bookReadingText.trim()) throw new Error('사진에서 읽을 수 있는 영어 본문을 찾지 못했습니다.');
-                        stopBookReading();
-                        document.getElementById('bookReadingText').textContent = bookReadingText;
-                        document.getElementById('bookReadingStatus').textContent = '본문 추출 완료 · 처음부터 읽기를 누르세요.';
-                        document.getElementById('uploadView').classList.add('hidden');
-                        document.getElementById('loadingView').classList.add('hidden');
-                        document.getElementById('cardView').classList.add('hidden');
-                        document.getElementById('testView').classList.add('hidden');
-                        document.getElementById('testSummaryView').classList.add('hidden');
-                        document.getElementById('vocabularyQuizView').classList.add('hidden');
-                        document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
-                        document.getElementById('bookReadingView').classList.remove('hidden');
-                        document.getElementById('bookReadingView').classList.add('flex');
-                    } else {
-                        await clearPendingImageJob();
-                        await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
-                        await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
-                    }
+                    await clearPendingImageJob();
+                    await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
+                    await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
                 } catch (err) {
                     console.error("Extraction error:", err);
                     alert('이미지 저장 또는 인식 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
@@ -1882,7 +1876,22 @@
                         } catch (cleanupError) {
                             console.warn('임시 이미지 정리에 실패했습니다.', cleanupError);
                         }
-                        enterRecognizedWordsStudyMode();
+                        try {
+                            bookReadingText = await extractBookTextFromImage(base64Data, mimeType, apiKey);
+                        } catch (bookOcrError) {
+                            console.warn('본문 전체 인식에 실패했습니다. 단어 공부 모드는 이용할 수 있습니다.', bookOcrError);
+                            bookReadingText = '';
+                        }
+                        document.getElementById('uploadView').classList.add('hidden');
+                        document.getElementById('loadingView').classList.add('hidden');
+                        document.getElementById('cardView').classList.add('hidden');
+                        document.getElementById('testView').classList.add('hidden');
+                        document.getElementById('testSummaryView').classList.add('hidden');
+                        document.getElementById('vocabularyQuizView').classList.add('hidden');
+                        document.getElementById('vocabularyQuizSummaryView').classList.add('hidden');
+                        document.getElementById('imageModeChoiceView').classList.remove('hidden');
+                        document.getElementById('imageModeChoiceView').classList.add('flex');
+                        document.getElementById('imageModeChoiceStatus').textContent = bookReadingText ? '단어·숙어와 영어 본문을 인식했어요.' : '단어는 인식했지만 본문 인식에 실패했어요. 단어 공부 모드는 이용할 수 있습니다.';
                         return;
                     }
                 }
@@ -2480,6 +2489,19 @@
             if (bookView) { bookView.classList.add('hidden'); bookView.classList.remove('flex'); }
             document.getElementById('loadingText').innerText = msg;
             document.getElementById('loadingView').classList.remove('hidden');
+        }
+
+        function chooseRecognizedStudyMode(mode) {
+            document.getElementById('imageModeChoiceView').classList.add('hidden');
+            document.getElementById('imageModeChoiceView').classList.remove('flex');
+            if (mode === 'book') {
+                document.getElementById('bookReadingText').textContent = bookReadingText || '본문을 인식하지 못했습니다.';
+                document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 처음부터 읽기를 누르세요.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
+                document.getElementById('bookReadingView').classList.remove('hidden');
+                document.getElementById('bookReadingView').classList.add('flex');
+            } else {
+                enterRecognizedWordsStudyMode();
+            }
         }
 
         function enterRecognizedWordsStudyMode() {
