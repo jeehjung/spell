@@ -19,6 +19,9 @@
         #cardMeaning { font-size: 1.15rem; line-height: 1.8; white-space: pre-line; }
         .card-shadow { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); }
         .pulse-btn { animation: pulse 2s infinite; }
+        /* In book-reading mode, keep the top navigation visible and replace the word-card content with the reader. */
+        #cardView.book-mode-active > :nth-child(n+3) { display: none !important; }
+        #cardView.book-mode-active > #bookReadingView { display: flex !important; }
         @keyframes pulse {
             0% { transform: scale(1); }
             50% { transform: scale(1.05); }
@@ -2613,16 +2616,19 @@
             // Recognized content is shared between the two modes. Keep the current deck
             // in memory and switch only the visible study screen.
             if (mode === 'words') {
-                if (!Array.isArray(wordsData) || wordsData.length === 0) {
-                    document.getElementById('bookReadingView').classList.add('hidden');
-                    document.getElementById('bookReadingView').classList.remove('flex');
-                    backToUpload();
-                    return;
-                }
                 if ('speechSynthesis' in window) window.speechSynthesis.cancel();
                 clearBookReadingHighlightTimer();
-                document.getElementById('bookReadingView').classList.add('hidden');
-                document.getElementById('bookReadingView').classList.remove('flex');
+                const bookView = document.getElementById('bookReadingView');
+                const cardView = document.getElementById('cardView');
+                // Move the reader back out of the card layout, then restore word-card content.
+                if (bookView && cardView && bookView.parentElement === cardView) {
+                    cardView.insertAdjacentElement('afterend', bookView);
+                }
+                cardView.classList.remove('book-mode-active');
+                if (bookView) {
+                    bookView.classList.add('hidden');
+                    bookView.classList.remove('flex');
+                }
                 document.getElementById('imageModeChoiceView').classList.add('hidden');
                 document.getElementById('imageModeChoiceView').classList.remove('flex');
                 enterRecognizedWordsStudyMode();
@@ -2640,12 +2646,21 @@
             bookReadingChunkIndex = 0;
             bookReadingChunkCharIndex = 0;
             bookReadingChunks = splitBookTextIntoChunks(bookReadingText);
-            ['uploadView','loadingView','cardView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => {
+            ['uploadView','loadingView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add('hidden');
             });
-            document.getElementById('bookReadingView').classList.remove('hidden');
-            document.getElementById('bookReadingView').classList.add('flex');
+            const cardView = document.getElementById('cardView');
+            const bookView = document.getElementById('bookReadingView');
+            cardView.classList.remove('hidden');
+            cardView.classList.add('book-mode-active');
+            // Keep the top row (Home, Spell Test, Voca. Quiz, and mode buttons) in place.
+            // Show the book-reading page directly beneath it.
+            if (bookView.parentElement !== cardView) {
+                cardView.firstElementChild.insertAdjacentElement('afterend', bookView);
+            }
+            bookView.classList.remove('hidden');
+            bookView.classList.add('flex');
             renderBookReadingScript();
             updateBookReadingProgress();
             document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요. 재생 버튼을 누르면 처음부터 읽습니다.';
