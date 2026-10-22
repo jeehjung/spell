@@ -762,28 +762,46 @@
             if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
         }
 
-        function normalizeMeaningFormat(value) {
-            const partOfSpeechPattern = /^(명사|대명사|동사|자동사|타동사|형용사|부사|전치사|접속사|감탄사|조동사|한정사|관사|구|숙어|명사구|동사구|형용사구|부사구|수사|의존명사|셀 수 있는 명사|셀 수 없는 명사)$/;
+        function normalizeMeaningFormat(value, fallbackPartOfSpeech = '') {
+            const partOfSpeechMap = {
+                '명사': '명사', '대명사': '대명사', '동사': '동사', '자동사': '동사', '타동사': '동사',
+                '형용사': '형용사', '부사': '부사', '전치사': '전치사', '접속사': '접속사',
+                '감탄사': '감탄사', '조동사': '조동사', '한정사': '한정사', '관사': '관사',
+                '구': '표현', '숙어': '숙어', '명사구': '명사구', '동사구': '동사구',
+                '형용사구': '형용사구', '부사구': '부사구', '수사': '수사', '의존명사': '의존명사',
+                '셀 수 있는 명사': '명사', '셀 수 없는 명사': '명사',
+                'noun': '명사', 'nouns': '명사', 'pronoun': '대명사', 'pronouns': '대명사',
+                'verb': '동사', 'verbs': '동사', 'transitive verb': '동사', 'intransitive verb': '동사',
+                'adjective': '형용사', 'adjectives': '형용사', 'adj': '형용사',
+                'adverb': '부사', 'adverbs': '부사', 'adv': '부사',
+                'preposition': '전치사', 'conjunction': '접속사', 'interjection': '감탄사',
+                'modal verb': '조동사', 'determiner': '한정사', 'article': '관사',
+                'phrase': '표현', 'idiom': '숙어', 'phrasal verb': '구동사'
+            };
+            const normalizePos = value => partOfSpeechMap[String(value || '').trim().toLocaleLowerCase()] || '';
             const lines = String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+            const fallbackPos = normalizePos(fallbackPartOfSpeech);
             return lines.map((line, index) => {
                 let content = line.replace(/^\s*\d+\s*[.)、:：-]?\s*/, '').trim();
-
-                // Remove part-of-speech labels instead of displaying them.
+                let pos = '';
                 const leading = content.match(/^\(?([^():：]+)\)?\s*[:：-]\s*(.+)$/);
-                if (leading && partOfSpeechPattern.test(leading[1].trim())) {
+                if (leading && normalizePos(leading[1])) {
+                    pos = normalizePos(leading[1]);
                     content = leading[2].trim();
                 } else {
                     const leadingParen = content.match(/^\(([^)]+)\)\s*(.+)$/);
-                    if (leadingParen && partOfSpeechPattern.test(leadingParen[1].trim())) {
+                    if (leadingParen && normalizePos(leadingParen[1])) {
+                        pos = normalizePos(leadingParen[1]);
                         content = leadingParen[2].trim();
                     }
                 }
-
                 const trailing = content.match(/\s*\(([^()]+)\)\s*$/);
-                if (trailing && partOfSpeechPattern.test(trailing[1].trim())) {
+                if (!pos && trailing && normalizePos(trailing[1])) {
+                    pos = normalizePos(trailing[1]);
                     content = content.slice(0, trailing.index).trim();
                 }
-                return `${index + 1}. ${content}`;
+                pos = pos || fallbackPos;
+                return `${index + 1}. ${pos ? `(${pos}) ` : ''}${content}`;
             }).join('\n');
         }
 
@@ -801,7 +819,7 @@
             if (meaningLabel) meaningLabel.innerText = '의미 (Meaning)';
             document.getElementById('dictResWord').innerText = data.word || fallbackWord;
             document.getElementById('dictResPhonetic').innerText = data.phonetic || "[ - ]";
-            document.getElementById('dictResMeaning').innerText = data.meaning || (isKoreanQuery ? (data.word || fallbackWord) : "뜻 없음");
+            document.getElementById('dictResMeaning').innerText = normalizeMeaningFormat(data.meaning || (isKoreanQuery ? (data.word || fallbackWord) : "뜻 없음"), data.partOfSpeech);
             document.getElementById('dictResExampleEn').innerText = data.exampleEn || fallbackWord;
             document.getElementById('dictResExampleKo').innerText = data.exampleKo || "";
             const dictSynonyms = normalizeWordList(data.synonyms);
@@ -1236,7 +1254,7 @@
 
             showLoading('최근 30일간 배운 단어를 제외하고 오늘의 영어 단어 10개를 만드는 중...');
             try {
-                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select varied, useful words suitable for Grade 2 international-school students; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning, exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), and antonyms (array of 1-5 common English antonyms). Use empty arrays if none are appropriate. In meaning, use numbered lines and always put each Korean meaning first followed by the part of speech in parentheses, exactly like \'1. 관찰하다 (동사)\' or \'2. 관찰 (명사)\'. Never use formats like \'명사: 관찰\' or \'(명사) 관찰\'. Use the same format consistently for every meaning line. Do not add explanatory details or usage notes in parentheses. In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Always exclude any target vocabulary word explicitly listed in the exclusion list in the user message, including case-insensitive matches. Return ONLY a valid JSON array with exactly the number of objects requested in the user message. Do not use markdown fences.';
+                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select varied, useful words suitable for Grade 2 international-school students; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning, exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), and antonyms (array of 1-5 common English antonyms). Use empty arrays if none are appropriate. In meaning, use numbered lines and always put a Korean part-of-speech label in parentheses BEFORE each Korean meaning, exactly like \'1. (동사) 관찰하다\' or \'2. (명사) 관찰\'. Use labels such as (명사), (동사), (형용사), (부사), (전치사), (접속사), and (대명사). Every meaning line must have a label; never put the label after the meaning. Do not add explanatory details or usage notes in parentheses. In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Always exclude any target vocabulary word explicitly listed in the exclusion list in the user message, including case-insensitive matches. Return ONLY a valid JSON array with exactly the number of objects requested in the user message. Do not use markdown fences.';
                 const userQuery = 'Generate exactly 10 distinct vocabulary words suitable for a Grade 2 international-school student. Choose useful classroom, reading, science, social studies, and expressive-writing vocabulary. Include word, phonetic, stressPattern, meaning, synonyms, antonyms, exampleEn, and exampleKo for each word.';
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const seen = getRecentDailyWordSet();
@@ -1790,7 +1808,7 @@
             const isKoreanQuery = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(query);
             const userQuery = isKoreanQuery
                 ? `Translate the Korean search term "${query}" into its most natural English word or phrase. Identify the part of speech. Return JSON only: {"word":"English translation","phonetic":"IPA pronunciation","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"numbered meanings, most common first, with part-of-speech labels","exampleEn":"short simple English sentence for the first meaning","exampleKo":"Korean translation of the example","synonyms":["common English synonym 1","common English synonym 2"],"antonyms":["common English antonym 1","common English antonym 2"]}. Do not return a Korean meaning in the meaning field. Include only common, useful synonyms and antonyms; use empty arrays if none are appropriate.`
-                : `Give a concise English dictionary entry for "${query}". Include the main common Korean meanings, not just one: put the most common meaning first, then other common meanings, each on a new numbered line. Always put the Korean meaning first followed by the part of speech in parentheses, e.g. '1. 관찰하다 (동사)'; never put the part of speech before the meaning. Avoid obscure/rare meanings. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"1. 대표 뜻 (품사)\\n2. 다른 주요 뜻 (품사)\\n3. 또 다른 주요 뜻 (품사)","exampleEn":"short simple English sentence using the first meaning","exampleKo":"Korean translation","synonyms":["common English synonym 1","common English synonym 2"],"antonyms":["common English antonym 1","common English antonym 2"]}. Include only common, useful synonyms and antonyms; use empty arrays if none are appropriate.`;
+                : `Give a concise English dictionary entry for "${query}". Include the main common Korean meanings, not just one: put the most common meaning first, then other common meanings, each on a new numbered line. Always put the Korean part-of-speech label in Korean and in parentheses BEFORE each meaning, e.g. '1. (동사) 관찰하다' or '2. (명사) 관찰'. Every meaning line must have a label. Avoid obscure/rare meanings. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"1. (명사) 대표 뜻\\n2. (동사) 다른 주요 뜻\\n3. (형용사) 또 다른 주요 뜻","exampleEn":"short simple English sentence using the first meaning","exampleKo":"Korean translation","synonyms":["common English synonym 1","common English synonym 2"],"antonyms":["common English antonym 1","common English antonym 2"]}. Include only common, useful synonyms and antonyms; use empty arrays if none are appropriate.`;
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
                 generationConfig: { responseMimeType: "application/json", maxOutputTokens: 300, temperature: 0.2 }
@@ -2169,7 +2187,7 @@
         }
 
         async function extractWordsFromImage(base64Data, mimeType, apiKey) {
-            const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (accurate IPA pronunciation including ˈ before the primary-stressed syllable for multisyllabic words when applicable), stressPattern (syllables separated by hyphens with the stressed syllable in ALL CAPS, e.g. ob-SERVE or EN-or-mous; for one-syllable words use the word in uppercase), meaning (common Korean meanings, most common first, numbered on separate lines, with part-of-speech labels where useful), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (accurate IPA pronunciation including ˈ before the primary-stressed syllable for multisyllabic words when applicable), stressPattern (syllables separated by hyphens with the stressed syllable in ALL CAPS, e.g. ob-SERVE or EN-or-mous; for one-syllable words use the word in uppercase), meaning (common Korean meanings, most common first, numbered on separate lines, EVERY meaning line must start with a Korean part-of-speech label in parentheses, e.g. '1. (명사) 관찰' or '2. (동사) 관찰하다'; use Korean labels such as 명사, 동사, 형용사, 부사, 전치사, 접속사, 대명사; never omit the label), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
             const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic with the primary stress mark ˈ where applicable, stressPattern (hyphenated syllables with the stressed syllable in ALL CAPS), meaning, synonyms (array of common English words), antonyms (array of common English words), exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
 
             const payload = {
@@ -2657,7 +2675,7 @@
             const stressEl = document.getElementById('cardStressPattern');
             stressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
             stressEl.classList.remove('hidden');
-            document.getElementById('cardMeaning').innerText = normalizeMeaningFormat(item.meaning);
+            document.getElementById('cardMeaning').innerText = normalizeMeaningFormat(item.meaning, item.partOfSpeech);
             const cardSynonyms = normalizeWordList(item.synonyms);
             const cardAntonyms = normalizeWordList(item.antonyms);
             renderWordRelationButtons('cardSynonyms', cardSynonyms, 'synonym', item.word);
