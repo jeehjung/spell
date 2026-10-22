@@ -750,6 +750,33 @@
             if (data.exampleKo) document.getElementById('editExampleKoInput').value = data.exampleKo;
         }
 
+        function normalizeMeaningFormat(value) {
+            const partOfSpeechPattern = /^(명사|대명사|동사|자동사|타동사|형용사|부사|전치사|접속사|감탄사|조동사|한정사|관사|구|숙어|명사구|동사구|형용사구|부사구|수사|의존명사|셀 수 있는 명사|셀 수 없는 명사)$/;
+            const lines = String(value || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+            return lines.map((line, index) => {
+                let content = line.replace(/^\s*\d+\s*[.)、:：-]?\s*/, '').trim();
+                let pos = '';
+                const leading = content.match(/^\(?([^():：]+)\)?\s*[:：-]\s*(.+)$/);
+                if (leading && partOfSpeechPattern.test(leading[1].trim())) {
+                    pos = leading[1].trim();
+                    content = leading[2].trim();
+                } else {
+                    const leadingParen = content.match(/^\(([^)]+)\)\s*(.+)$/);
+                    if (leadingParen && partOfSpeechPattern.test(leadingParen[1].trim())) {
+                        pos = leadingParen[1].trim();
+                        content = leadingParen[2].trim();
+                    }
+                }
+                const trailing = content.match(/\s*\(([^()]+)\)\s*$/);
+                if (!pos && trailing && partOfSpeechPattern.test(trailing[1].trim())) {
+                    pos = trailing[1].trim();
+                    content = content.slice(0, trailing.index).trim();
+                }
+                if (pos) content = `${content} (${pos})`;
+                return `${index + 1}. ${content}`;
+            }).join('\n');
+        }
+
         function normalizeWordList(value) {
             if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean).slice(0, 5);
             if (typeof value === 'string') return value.split(/[,;\n]/).map(item => item.replace(/^[-•\d.)\s]+/, '').trim()).filter(Boolean).slice(0, 5);
@@ -1199,7 +1226,7 @@
 
             showLoading('최근 30일간 배운 단어를 제외하고 오늘의 영어 단어 10개를 만드는 중...');
             try {
-                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select varied, useful words suitable for Grade 2 international-school students; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning, exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), and antonyms (array of 1-5 common English antonyms). Use empty arrays if none are appropriate. In meaning, give the common Korean meanings in numbered lines, with the most common/representative meaning first; label the part of speech where useful, matching the concise format used for words extracted from an image. Do not add explanatory details or usage notes in parentheses. In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Always exclude any target vocabulary word explicitly listed in the exclusion list in the user message, including case-insensitive matches. Return ONLY a valid JSON array with exactly the number of objects requested in the user message. Do not use markdown fences.';
+                const systemPrompt = 'You are an expert English vocabulary teacher for a child who graduated from an English-immersion kindergarten and is now in Grade 2 at an international school. Create vocabulary words at a strong Grade 2 / early Grade 3 international-school level, NOT beginner kindergarten words. Assume the child already knows everyday basics such as apple, book, dog, happy, run, big, and school. Prioritize useful academic and curriculum vocabulary, richer verbs and adjectives, feelings and character traits, science/nature, community, and reading comprehension words. Examples of the intended level include observe, compare, predict, investigate, discover, describe, explain, measure, estimate, evidence, pattern, solution, habitat, survive, migrate, enormous, delicate, curious, responsible, independent, frustrated, patient, ancient, tradition, and journey. Select varied, useful words suitable for Grade 2 international-school students; avoid overly obscure, adult, or specialist terms. Do not simply reuse the examples above every day; choose an appropriate fresh mix. For each item return word, phonetic (IPA in brackets), stressPattern, meaning, exampleEn (one natural sentence suitable for Grade 2 readers that demonstrates the word in context), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), and antonyms (array of 1-5 common English antonyms). Use empty arrays if none are appropriate. In meaning, use numbered lines and always put each Korean meaning first followed by the part of speech in parentheses, exactly like '1. 관찰하다 (동사)' or '2. 관찰 (명사)'. Never use formats like '명사: 관찰' or '(명사) 관찰'. Use the same format consistently for every meaning line. Do not add explanatory details or usage notes in parentheses. In stressPattern, show syllables separated by hyphens and write the stressed syllable in ALL CAPS, for example ob-SERVE, com-PARE, in-VES-ti-gate, EN-or-mous, re-SPON-si-ble. Use standard lexical word stress, not sentence intonation. For one-syllable words, return the word in uppercase only if it is naturally stressed when spoken alone. Keep the English example sentence meaningful rather than babyish, and use the target word naturally. Always exclude any target vocabulary word explicitly listed in the exclusion list in the user message, including case-insensitive matches. Return ONLY a valid JSON array with exactly the number of objects requested in the user message. Do not use markdown fences.';
                 const userQuery = 'Generate exactly 10 distinct vocabulary words suitable for a Grade 2 international-school student. Choose useful classroom, reading, science, social studies, and expressive-writing vocabulary. Include word, phonetic, stressPattern, meaning, synonyms, antonyms, exampleEn, and exampleKo for each word.';
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
                 const seen = getRecentDailyWordSet();
@@ -1753,7 +1780,7 @@
             const isKoreanQuery = /[가-힣ㄱ-ㅎㅏ-ㅣ]/.test(query);
             const userQuery = isKoreanQuery
                 ? `Translate the Korean search term "${query}" into its most natural English word or phrase. Identify the part of speech. Return JSON only: {"word":"English translation","phonetic":"IPA pronunciation","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"numbered meanings, most common first, with part-of-speech labels","exampleEn":"short simple English sentence for the first meaning","exampleKo":"Korean translation of the example","synonyms":["common English synonym 1","common English synonym 2"],"antonyms":["common English antonym 1","common English antonym 2"]}. Do not return a Korean meaning in the meaning field. Include only common, useful synonyms and antonyms; use empty arrays if none are appropriate.`
-                : `Give a concise English dictionary entry for "${query}". Include the main common Korean meanings, not just one: put the most common meaning first, then other common meanings, each on a new numbered line and label its part of speech when useful. Avoid obscure/rare meanings. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"1. 대표 뜻 (품사)\\n2. 다른 주요 뜻 (품사)\\n3. 또 다른 주요 뜻 (품사)","exampleEn":"short simple English sentence using the first meaning","exampleKo":"Korean translation","synonyms":["common English synonym 1","common English synonym 2"],"antonyms":["common English antonym 1","common English antonym 2"]}. Include only common, useful synonyms and antonyms; use empty arrays if none are appropriate.`;
+                : `Give a concise English dictionary entry for "${query}". Include the main common Korean meanings, not just one: put the most common meaning first, then other common meanings, each on a new numbered line. Always put the Korean meaning first followed by the part of speech in parentheses, e.g. '1. 관찰하다 (동사)'; never put the part of speech before the meaning. Avoid obscure/rare meanings. Return JSON only: {"word":"...","phonetic":"IPA","partOfSpeech":"noun, verb, adjective, adverb, or other","meaning":"1. 대표 뜻 (품사)\\n2. 다른 주요 뜻 (품사)\\n3. 또 다른 주요 뜻 (품사)","exampleEn":"short simple English sentence using the first meaning","exampleKo":"Korean translation","synonyms":["common English synonym 1","common English synonym 2"],"antonyms":["common English antonym 1","common English antonym 2"]}. Include only common, useful synonyms and antonyms; use empty arrays if none are appropriate.`;
             const payload = {
                 contents: [{ role: "user", parts: [{ text: userQuery }] }],
                 generationConfig: { responseMimeType: "application/json", maxOutputTokens: 300, temperature: 0.2 }
@@ -2544,7 +2571,7 @@
             }
 
             try {
-                const systemPrompt = "You are an expert English teacher. Return valid JSON only with keys: word, phonetic (IPA in square brackets), meaning (common Korean meanings, numbered on separate lines, include part of speech), exampleEn (natural simple English example using the word), exampleKo (Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Use accurate, common meanings and do not invent obscure senses. If no suitable synonym or antonym exists, use an empty array.";
+                const systemPrompt = "You are an expert English teacher. Return valid JSON only with keys: word, phonetic (IPA in square brackets), meaning (common Korean meanings numbered on separate lines, each line must use '1. Korean meaning (품사)' format, e.g. '1. 관찰하다 (동사)'; never put the part of speech before the meaning or use '(품사) meaning'), exampleEn (natural simple English example using the word), exampleKo (Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Use accurate, common meanings and do not invent obscure senses. If no suitable synonym or antonym exists, use an empty array.";
                 const userQuery = `Provide complete learning information for the English word "${newWord}". Include its IPA pronunciation, common Korean meanings, a natural example sentence with Korean translation, and useful synonyms and antonyms. Return JSON only.`;
                 const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
                     method: 'POST',
@@ -2596,7 +2623,7 @@
             const stressEl = document.getElementById('cardStressPattern');
             stressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
             stressEl.classList.remove('hidden');
-            document.getElementById('cardMeaning').innerText = item.meaning;
+            document.getElementById('cardMeaning').innerText = normalizeMeaningFormat(item.meaning);
             const cardSynonyms = normalizeWordList(item.synonyms);
             const cardAntonyms = normalizeWordList(item.antonyms);
             renderWordRelationButtons('cardSynonyms', cardSynonyms, 'synonym', item.word);
