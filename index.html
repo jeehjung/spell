@@ -733,6 +733,7 @@
                     exampleEn: data.exampleEn || '',
                     exampleKo: data.exampleKo || '',
                     partOfSpeech: data.partOfSpeech || '',
+                    stressPattern: data.stressPattern || '',
                     synonyms: normalizeWordList(data.synonyms),
                     antonyms: normalizeWordList(data.antonyms)
                 };
@@ -2071,8 +2072,8 @@
         }
 
         async function extractWordsFromImage(base64Data, mimeType, apiKey) {
-            const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (IPA pronunciation; for multi-word expressions, give a practical pronunciation for the full expression), meaning (common Korean meanings, most common first, numbered on separate lines, with part-of-speech labels where useful), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
-            const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic, meaning, synonyms (array of common English words), antonyms (array of common English words), exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
+            const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (accurate IPA pronunciation including ˈ before the primary-stressed syllable for multisyllabic words when applicable), stressPattern (syllables separated by hyphens with the stressed syllable in ALL CAPS, e.g. ob-SERVE or EN-or-mous; for one-syllable words use the word in uppercase), meaning (common Korean meanings, most common first, numbered on separate lines, with part-of-speech labels where useful), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
+            const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic with the primary stress mark ˈ where applicable, stressPattern (hyphenated syllables with the stressed syllable in ALL CAPS), meaning, synonyms (array of common English words), antonyms (array of common English words), exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
 
             const payload = {
                 contents: [
@@ -2122,7 +2123,10 @@
                     }
 
                     if (Array.isArray(parsed) && parsed.length > 0) {
-                        wordsData = parsed;
+                        wordsData = parsed.map(item => ({
+                            ...item,
+                            stressPattern: String(item.stressPattern || '').trim()
+                        }));
                         currentIndex = 0;
                         currentDeckId = null;
                         
@@ -2530,7 +2534,10 @@
             document.getElementById('cardWord').innerText = item.word;
             document.getElementById('cardPhonetic').innerText = item.phonetic || "[ - ]";
             const stressEl = document.getElementById('cardStressPattern');
-            stressEl.textContent = "발음기호의 ' 뒤 음절에 강세";
+            const stressPattern = String(item.stressPattern || '').trim();
+            stressEl.textContent = stressPattern
+                ? `강세: ${stressPattern}`
+                : "강세 표기 없음 · 발음기호의 ˈ 뒤 음절에 주강세";
             stressEl.classList.remove('hidden');
             document.getElementById('cardMeaning').innerText = item.meaning;
             const cardSynonyms = normalizeWordList(item.synonyms);
@@ -2936,8 +2943,9 @@
             renderBookReadingScript();
             updateBookReadingProgress();
             document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요. 자동으로 읽기를 시작합니다.';
-            // Entering one-time reading mode starts speech immediately.
-            playBookReading();
+            // Simulate pressing the visible Play button when entering reading mode.
+            const playButton = document.getElementById('bookReadingPlayPauseBtn');
+            if (playButton) playButton.click();
         }
 
         function chooseRecognizedStudyMode(mode) {
@@ -2952,7 +2960,10 @@
                 document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 자동으로 읽기를 시작합니다.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
                 document.getElementById('bookReadingView').classList.remove('hidden');
                 document.getElementById('bookReadingView').classList.add('flex');
-                if (bookReadingText.trim()) playBookReading();
+                if (bookReadingText.trim()) {
+                    const playButton = document.getElementById('bookReadingPlayPauseBtn');
+                    if (playButton) playButton.click();
+                }
             } else {
                 enterRecognizedWordsStudyMode();
             }
