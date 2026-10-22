@@ -2458,7 +2458,7 @@
             // Reuse cached AI details when available; otherwise request pronunciation,
             // meanings, example, synonyms, and antonyms from Gemini.
             const cached = getCachedWordInfo(newWord);
-            if (cached && cached.phonetic && cached.meaning && cached.exampleEn) {
+            if (cached && cached.phonetic && cached.meaning && cached.exampleEn && Array.isArray(cached.synonyms) && Array.isArray(cached.antonyms)) {
                 Object.assign(newItem, cached, {
                     word: newWord,
                     synonyms: normalizeWordList(cached.synonyms),
