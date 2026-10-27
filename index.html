@@ -116,7 +116,7 @@
                 <span id="speechRateValue" class="text-xs font-bold text-indigo-600 w-10 text-right">0.75x</span>
             </div>
         </div>
-        <p class="mt-2 text-[11px] text-slate-500 leading-relaxed">안내: 사진 인식 등 진행 중인 기능이 정상적으로 작동하도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
+        <p id="browserKeepOpenNotice" class="hidden mt-2 text-[11px] text-amber-700 leading-relaxed" role="status">안내: 작업이 정상적으로 완료되도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
     </header>
 
     <!-- Main Content Area -->
@@ -1063,6 +1063,7 @@
             }
 
             imageRecognitionActive = true;
+            updateBrowserKeepOpenNotice();
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
@@ -1072,6 +1073,7 @@
                 backToUpload();
             } finally {
                 imageRecognitionActive = false;
+                updateBrowserKeepOpenNotice();
                 await showPendingImageRecovery();
             }
         }
@@ -1609,6 +1611,12 @@
         let lastDictionaryRequestAt = 0;
         let dictionaryRequestInFlight = false;
 
+        function updateBrowserKeepOpenNotice() {
+            const notice = document.getElementById('browserKeepOpenNotice');
+            if (!notice) return;
+            notice.classList.toggle('hidden', !imageRecognitionActive && !dictionaryRequestInFlight);
+        }
+
         async function lookupDictionaryWord() {
             const query = document.getElementById('dictQueryInput').value.trim();
             if (!query || dictionaryRequestInFlight) return;
@@ -1624,10 +1632,12 @@
             if (waitMs > 0) {
                 // Avoid a disruptive alert; briefly wait, then run the latest entered query.
                 dictionaryRequestInFlight = true;
+                updateBrowserKeepOpenNotice();
                 const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
                 if (searchButton) searchButton.disabled = true;
                 setTimeout(() => {
                     dictionaryRequestInFlight = false;
+                    updateBrowserKeepOpenNotice();
                     if (searchButton) searchButton.disabled = false;
                     lookupDictionaryWord();
                 }, waitMs);
@@ -1635,6 +1645,7 @@
             }
 
             dictionaryRequestInFlight = true;
+            updateBrowserKeepOpenNotice();
             const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
             if (searchButton) {
                 searchButton.disabled = true;
@@ -1691,6 +1702,7 @@
                 alert("단어 정보를 해석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
             } finally {
                 dictionaryRequestInFlight = false;
+                updateBrowserKeepOpenNotice();
                 if (searchButton) {
                     searchButton.disabled = false;
                     searchButton.classList.remove('opacity-50');
@@ -1735,6 +1747,7 @@
             reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
                 imageRecognitionActive = true;
+                updateBrowserKeepOpenNotice();
                 try {
                     await clearPendingImageJob();
                     await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
@@ -1745,6 +1758,7 @@
                     backToUpload();
                 } finally {
                     imageRecognitionActive = false;
+                    updateBrowserKeepOpenNotice();
                     await showPendingImageRecovery();
                     event.target.value = '';
                 }
