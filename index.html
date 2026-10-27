@@ -855,10 +855,10 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.textContent = term;
-                button.className = 'inline-block mx-0.5 my-0.5 px-1.5 py-0.5 rounded-md border text-xs font-semibold transition active:scale-95 ' +
+                button.className = 'inline p-0 m-0 border-0 rounded-none bg-transparent text-xs font-semibold transition hover:underline active:opacity-70 ' +
                     (relationType === 'synonym'
-                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
-                        : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100');
+                        ? 'text-indigo-700'
+                        : 'text-rose-700');
                 const relationLabel = relationType === 'synonym' ? '유의어' : '반의어';
                 button.title = `눌러서 '${term}' 사전 검색`;
                 button.setAttribute('aria-label', `${term} ${relationLabel}, 눌러서 사전 검색`);
