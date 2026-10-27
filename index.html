@@ -824,8 +824,8 @@
             document.getElementById('dictResExampleKo').innerText = data.exampleKo || "";
             const dictSynonyms = normalizeWordList(data.synonyms);
             const dictAntonyms = normalizeWordList(data.antonyms);
-            document.getElementById('dictResSynonyms').innerText = dictSynonyms.join(', ') || '정보 없음';
-            document.getElementById('dictResAntonyms').innerText = dictAntonyms.join(', ') || '정보 없음';
+            renderDictionaryRelatedTerms('dictResSynonyms', dictSynonyms, 'synonym');
+            renderDictionaryRelatedTerms('dictResAntonyms', dictAntonyms, 'antonym');
             document.getElementById('dictResSynAnt').classList.toggle('hidden', !dictSynonyms.length && !dictAntonyms.length);
             document.getElementById('dictLoading').classList.add('hidden');
             document.getElementById('dictResultArea').classList.remove('hidden');
@@ -839,6 +839,37 @@
             document.getElementById('dictResImage').removeAttribute('src');
             document.getElementById('dictImageAttribution').innerText = '';
             document.getElementById('dictImageSearchBtn').disabled = false;
+        }
+
+        function renderDictionaryRelatedTerms(containerId, terms, relationType) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.replaceChildren();
+
+            if (!terms.length) {
+                container.textContent = '정보 없음';
+                return;
+            }
+
+            terms.forEach((term) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = term;
+                button.className = 'inline-block mx-0.5 my-0.5 px-1.5 py-0.5 rounded-md border text-xs font-semibold transition active:scale-95 ' +
+                    (relationType === 'synonym'
+                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                        : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100');
+                const relationLabel = relationType === 'synonym' ? '유의어' : '반의어';
+                button.title = `눌러서 '${term}' 사전 검색`;
+                button.setAttribute('aria-label', `${term} ${relationLabel}, 눌러서 사전 검색`);
+                button.addEventListener('click', () => {
+                    const input = document.getElementById('dictQueryInput');
+                    if (!input) return;
+                    input.value = term;
+                    lookupDictionaryWord();
+                });
+                container.appendChild(button);
+            });
         }
 
         async function searchDictionaryImage() {
