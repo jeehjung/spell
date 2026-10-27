@@ -48,7 +48,8 @@
             cursor: grab;
         }
         #bookReadingSeekSlider:active::-moz-range-thumb { cursor: grabbing; }
-        #cardSynonyms button, #cardAntonyms button {
+        #cardSynonyms button, #cardAntonyms button,
+        #dictResSynonyms button, #dictResAntonyms button {
             display: inline-block;
             margin: 1px 3px 1px 0;
             padding: 2px 5px;
@@ -62,12 +63,13 @@
             cursor: pointer;
             min-height: 0;
         }
-        #cardAntonyms button {
+        #cardAntonyms button, #dictResAntonyms button {
             border-color: #fecdd3;
             background: #fff1f2;
             color: #be123c;
         }
-        #cardSynonyms button:active, #cardAntonyms button:active { transform: scale(0.97); }
+        #cardSynonyms button:active, #cardAntonyms button:active,
+        #dictResSynonyms button:active, #dictResAntonyms button:active { transform: scale(0.97); }
         #cardExampleEn { font-size: 1.15rem; line-height: 1.65; }
         #cardExampleKo { font-size: 1rem; line-height: 1.6; }
         #cardMeaning { font-size: 1.15rem; line-height: 1.8; white-space: pre-line; }
@@ -857,10 +859,10 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.textContent = term;
-                button.className = 'inline p-0 m-0 border-0 rounded-none bg-transparent text-xs font-semibold transition hover:underline active:opacity-70 ' +
+                button.className = 'inline-block mx-0.5 my-0.5 px-1.5 py-0.5 rounded-md border text-xs font-semibold transition active:scale-95 ' +
                     (relationType === 'synonym'
-                        ? 'text-indigo-700'
-                        : 'text-rose-700');
+                        ? 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                        : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100');
                 const relationLabel = relationType === 'synonym' ? '유의어' : '반의어';
                 button.title = `눌러서 '${term}' 사전 검색`;
                 button.setAttribute('aria-label', `${term} ${relationLabel}, 눌러서 사전 검색`);
