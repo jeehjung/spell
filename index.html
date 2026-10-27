@@ -116,7 +116,6 @@
                 <span id="speechRateValue" class="text-xs font-bold text-indigo-600 w-10 text-right">0.75x</span>
             </div>
         </div>
-        <p id="browserKeepOpenNotice" class="hidden mt-2 text-[11px] text-amber-700 leading-relaxed" role="status">안내: 작업이 정상적으로 완료되도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
     </header>
 
     <!-- Main Content Area -->
@@ -161,6 +160,7 @@
             <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h2 id="loadingText" class="text-base font-bold text-slate-800 mb-1">단어장 분석 중...</h2>
             <p class="text-xs text-slate-400">잠시만 기다려 주세요.</p>
+            <p class="mt-2 text-[11px] text-amber-700 leading-relaxed">인식이 정상적으로 완료되도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
         </div>
 
         <!-- Main Word Card View -->
@@ -451,6 +451,7 @@
             <div id="dictLoading" class="hidden py-6 text-center shrink-0">
                 <div class="w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                 <p class="text-xs text-slate-500 font-medium">사전 조회 중...</p>
+                <p class="mt-2 text-[11px] text-amber-700 leading-relaxed">검색이 정상적으로 완료되도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
             </div>
 
             <!-- Result Display Area -->
@@ -1063,7 +1064,6 @@
             }
 
             imageRecognitionActive = true;
-            updateBrowserKeepOpenNotice();
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
@@ -1073,7 +1073,6 @@
                 backToUpload();
             } finally {
                 imageRecognitionActive = false;
-                updateBrowserKeepOpenNotice();
                 await showPendingImageRecovery();
             }
         }
@@ -1611,12 +1610,6 @@
         let lastDictionaryRequestAt = 0;
         let dictionaryRequestInFlight = false;
 
-        function updateBrowserKeepOpenNotice() {
-            const notice = document.getElementById('browserKeepOpenNotice');
-            if (!notice) return;
-            notice.classList.toggle('hidden', !imageRecognitionActive && !dictionaryRequestInFlight);
-        }
-
         async function lookupDictionaryWord() {
             const query = document.getElementById('dictQueryInput').value.trim();
             if (!query || dictionaryRequestInFlight) return;
@@ -1632,20 +1625,17 @@
             if (waitMs > 0) {
                 // Avoid a disruptive alert; briefly wait, then run the latest entered query.
                 dictionaryRequestInFlight = true;
-                updateBrowserKeepOpenNotice();
                 const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
                 if (searchButton) searchButton.disabled = true;
                 setTimeout(() => {
                     dictionaryRequestInFlight = false;
-                    updateBrowserKeepOpenNotice();
-                    if (searchButton) searchButton.disabled = false;
+                        if (searchButton) searchButton.disabled = false;
                     lookupDictionaryWord();
                 }, waitMs);
                 return;
             }
 
             dictionaryRequestInFlight = true;
-            updateBrowserKeepOpenNotice();
             const searchButton = document.querySelector('#dictionaryModal button[onclick="lookupDictionaryWord()"]');
             if (searchButton) {
                 searchButton.disabled = true;
@@ -1702,7 +1692,6 @@
                 alert("단어 정보를 해석하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
             } finally {
                 dictionaryRequestInFlight = false;
-                updateBrowserKeepOpenNotice();
                 if (searchButton) {
                     searchButton.disabled = false;
                     searchButton.classList.remove('opacity-50');
@@ -1747,7 +1736,6 @@
             reader.onload = async function(e) {
                 const base64Data = e.target.result.split(',')[1];
                 imageRecognitionActive = true;
-                updateBrowserKeepOpenNotice();
                 try {
                     await clearPendingImageJob();
                     await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
@@ -1758,8 +1746,7 @@
                     backToUpload();
                 } finally {
                     imageRecognitionActive = false;
-                    updateBrowserKeepOpenNotice();
-                    await showPendingImageRecovery();
+                        await showPendingImageRecovery();
                     event.target.value = '';
                 }
             };
