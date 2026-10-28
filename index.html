@@ -565,8 +565,8 @@
                     <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> 여기서 무료 API Key 발급받기
                 </a>
             </p>
-            <p id="geminiProxyPrivacyNotice" class="hidden text-xs text-slate-500 mb-4 leading-relaxed">
-                웹 앱은 API 키와 요청 내용을 Cloudflare를 거쳐 Gemini에 전달합니다. 요청 처리를 마치면 API 키를 저장하지 않습니다.
+            <p id="geminiProxyPrivacyNotice" class="text-xs text-slate-500 mb-4 leading-relaxed">
+                앱은 API 키와 요청 내용을 Cloudflare를 거쳐 Gemini에 전달합니다. 요청 처리 중에만 사용하며 서버에 저장하지 않습니다.
             </p>
 
             <div class="mb-5">
@@ -645,15 +645,12 @@
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
-        function getGeminiApiUrl(apiKey) {
-            if (window.AndroidBridge) {
-                return `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-            }
-            return '/api/gemini';
+        function getGeminiApiUrl() {
+            return window.AndroidBridge ? 'https://spell-766.pages.dev/api/gemini' : '/api/gemini';
         }
 
         function getGeminiRequestPayload(apiKey, payload) {
-            return window.AndroidBridge ? payload : { apiKey, model: GEMINI_MODEL, ...payload };
+            return { apiKey, model: GEMINI_MODEL, ...payload };
         }
         const SPEECH_RATE_KEY = 'spell_speech_rate_v1';
         const DEFAULT_SPEECH_RATE = 0.75;
@@ -1419,8 +1416,6 @@
         }
 
         function openApiKeyModal() {
-            const privacyNotice = document.getElementById('geminiProxyPrivacyNotice');
-            if (privacyNotice) privacyNotice.classList.toggle('hidden', !!window.AndroidBridge);
             const inputEl = document.getElementById('apiKeyInput');
             if (inputEl) {
                 inputEl.value = getStoredApiKey();
@@ -1675,7 +1670,7 @@
             try {
                 // Record each attempted request, including failures, to avoid rapid retry loops.
                 lastDictionaryRequestAt = Date.now();
-                const apiUrl = getGeminiApiUrl(apiKey);
+                const apiUrl = getGeminiApiUrl();
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1785,7 +1780,7 @@
                 ]}],
                 systemInstruction: { parts: [{ text: prompt }] }
             };
-            const apiUrl = getGeminiApiUrl(apiKey);
+            const apiUrl = getGeminiApiUrl();
             const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2062,7 +2057,7 @@
             };
 
             try {
-                const apiUrl = getGeminiApiUrl(apiKey);
+                const apiUrl = getGeminiApiUrl();
 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -2488,7 +2483,7 @@
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     generationConfig: { responseMimeType: "application/json" }
                 };
-                const response = await fetch(getGeminiApiUrl(apiKey), {
+                const response = await fetch(getGeminiApiUrl(), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(getGeminiRequestPayload(apiKey, relatedWordPayload))
@@ -2797,7 +2792,7 @@
             };
 
             try {
-                const apiUrl = getGeminiApiUrl(apiKey);
+                const apiUrl = getGeminiApiUrl();
                 const response = await fetch(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
