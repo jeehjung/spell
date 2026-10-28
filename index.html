@@ -1066,13 +1066,24 @@
             }
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             updateApiKeyUI();
             updateStorageUsageDisplay();
             updateStudyNameUI();
             const modelLabel = document.getElementById('geminiModelLabel');
             if (modelLabel) modelLabel.textContent = GEMINI_MODEL;
-            showPendingImageRecovery();
+            try {
+                const pendingJob = await getPendingImageJob();
+                if (pendingJob?.status === 'processing') {
+                    // Resume the durable server job automatically after the browser/page is reopened.
+                    await resumePendingImageRecognition();
+                } else {
+                    await showPendingImageRecovery();
+                }
+            } catch (err) {
+                console.warn('저장된 이미지 작업을 자동으로 이어가지 못했습니다.', err);
+                await showPendingImageRecovery();
+            }
         });
 
 
