@@ -2157,7 +2157,13 @@
                 }
                 alert("이미지에서 단어를 추출하지 못했습니다. 더 선명한 이미지로 시도해 주세요.");
             } catch (err) {
-                console.error(err);
+                console.error('이미지 인식 처리 실패:', err);
+                // API HTTP errors already display their response body above. Surface other failures,
+                // such as CORS/network errors or invalid model output, instead of leaving only a retry banner.
+                if (!String(err?.message || '').startsWith('API 오류 (')) {
+                    const detail = String(err?.message || '알 수 없는 오류');
+                    alert('사진 인식에 실패했습니다. 연결 상태를 확인하고 다시 시도해 주세요. (' + detail + ')');
+                }
                 backToUpload();
             }
         }
