@@ -1180,6 +1180,7 @@
 
             const apiKey = getStoredApiKey();
             if (!apiKey || !apiKey.trim()) {
+                await showPendingImageRecovery();
                 openApiKeyModal();
                 return;
             }
