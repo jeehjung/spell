@@ -674,6 +674,7 @@
                 if (!statusResponse.ok) return statusResponse;
                 const job = await statusResponse.json();
                 if (job.status === 'complete') {
+                    fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId) + '&ack=1', { cache: 'no-store' }).catch(() => {});
                     return new Response(JSON.stringify(job.output?.body ?? {}), {
                         status: job.output?.httpStatus || 200,
                         headers: { 'Content-Type': 'application/json; charset=utf-8' }
