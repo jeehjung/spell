@@ -666,7 +666,7 @@
             if (!startResponse.ok) return startResponse;
             if (startResponse.status !== 202) return startResponse;
 
-            const jobUrl = getGeminiApiUrl().replace(/\\/api\\/gemini$/, '/api/gemini-jobs');
+            const jobUrl = getGeminiApiUrl().replace('/api/gemini', '/api/gemini-jobs');
             const deadline = Date.now() + 7 * 24 * 60 * 60 * 1000;
             while (Date.now() < deadline) {
                 await new Promise(resolve => setTimeout(resolve, 1500));
@@ -703,6 +703,45 @@
         }
         function clearPendingDictionaryJob() {
             localStorage.removeItem(PENDING_DICTIONARY_JOB_KEY);
+        }
+
+        async function optimizeImageForBackground(dataUrl) {
+            const originalBase64 = String(dataUrl).split(',')[1] || '';
+            const originalMimeType = String(dataUrl).split(';')[0].slice(5) || 'image/jpeg';
+            if (originalBase64.length <= 700000) {
+                return { base64Data: originalBase64, mimeType: originalMimeType };
+            }
+            const image = new Image();
+            image.src = dataUrl;
+            await new Promise((resolve, reject) => {
+                image.onload = resolve;
+                image.onerror = () => reject(new Error('사진을 읽지 못했습니다.'));
+            });
+            let scale = Math.min(1, 2000 / Math.max(image.naturalWidth, image.naturalHeight));
+            while (scale >= 0.4) {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+                canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+                const context = canvas.getContext('2d');
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                for (const quality of [0.82, 0.72, 0.62, 0.52]) {
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+                    if (!blob) continue;
+                    if (blob.size > 0 && blob.size <= 520000) {
+                        const compressedDataUrl = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => reject(new Error('사진을 준비하지 못했습니다.'));
+                            reader.readAsDataURL(blob);
+                        });
+                        return { base64Data: String(compressedDataUrl).split(',')[1], mimeType: 'image/jpeg' };
+                    }
+                }
+                scale *= 0.85;
+            }
+            throw new Error('사진 용량을 줄이지 못했습니다. 더 작은 사진으로 다시 시도해 주세요.');
         }
         const SPEECH_RATE_KEY = 'spell_speech_rate_v1';
         const DEFAULT_SPEECH_RATE = 0.75;
@@ -1132,7 +1171,13 @@
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
-                await extractWordsFromImage(job.base64Data, job.mimeType, apiKey);
+                const jobId = job.jobId || newGeminiJobId();
+                if (!job.jobId) await savePendingImageJob({ ...job, jobId });
+                const optimizedImage = await optimizeImageForBackground('data:' + (job.mimeType || 'image/jpeg') + ';base64,' + job.base64Data);
+                if (optimizedImage.base64Data !== job.base64Data || optimizedImage.mimeType !== job.mimeType) {
+                    await savePendingImageJob({ ...job, ...optimizedImage, jobId });
+                }
+                await extractWordsFromImage(optimizedImage.base64Data, optimizedImage.mimeType, apiKey, jobId);
             } catch (err) {
                 console.error('이미지 인식 재시도 실패:', err);
                 backToUpload();
@@ -1656,7 +1701,8 @@
         }
 
         function openDictionaryModal() {
-            document.getElementById('dictQueryInput').value = '';
+            const pendingDictionaryJob = getPendingDictionaryJob();
+            document.getElementById('dictQueryInput').value = pendingDictionaryJob?.query || '';
             document.getElementById('dictLoading').classList.add('hidden');
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
@@ -1664,6 +1710,10 @@
             renderDictionaryHistory();
             document.getElementById('dictionaryModal').classList.remove('hidden');
             document.getElementById('dictQueryInput').focus();
+            if (pendingDictionaryJob) {
+                document.getElementById('dictLoading').classList.remove('hidden');
+                setTimeout(() => lookupDictionaryWord(), 0);
+            }
         }
 
         function closeDictionaryModal() {
@@ -1720,10 +1770,12 @@
             };
 
             try {
-                // Record each attempted request, including failures, to avoid rapid retry loops.
+                // Save the job ID before sending so this lookup can be resumed after reopening the browser.
                 lastDictionaryRequestAt = Date.now();
-                const apiUrl = getGeminiApiUrl();
-                const response = await callGeminiInBackground(apiKey, payload);
+                const savedDictionaryJob = getPendingDictionaryJob();
+                const jobId = savedDictionaryJob?.query === query ? savedDictionaryJob.jobId : newGeminiJobId();
+                savePendingDictionaryJob({ jobId, query, savedAt: Date.now() });
+                const response = await callGeminiInBackground(apiKey, payload, jobId);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
@@ -1734,6 +1786,7 @@
                     } else {
                         alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
                     }
+                    clearPendingDictionaryJob();
                     return;
                 }
 
@@ -1746,6 +1799,7 @@
                 responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
                 const jsonMatch = responseText.match(/\{[\s\S]*\}/);
                 currentDictWord = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+                clearPendingDictionaryJob();
                 saveDictionaryHistory(query, currentDictWord);
                 showDictionaryWord(currentDictWord, query);
             } catch (err) {
@@ -1795,12 +1849,15 @@
 
             const reader = new FileReader();
             reader.onload = async function(e) {
-                const base64Data = e.target.result.split(',')[1];
                 imageRecognitionActive = true;
                 try {
+                    const optimizedImage = await optimizeImageForBackground(e.target.result);
+                    const base64Data = optimizedImage.base64Data;
+                    const mimeType = optimizedImage.mimeType;
+                    const jobId = newGeminiJobId();
                     await clearPendingImageJob();
-                    await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
-                    await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
+                    await savePendingImageJob({ base64Data, mimeType, jobId, savedAt: new Date().toISOString(), status: 'processing' });
+                    await extractWordsFromImage(base64Data, mimeType, apiKey, jobId);
                 } catch (err) {
                     console.error("Extraction error:", err);
                     alert('이미지 저장 또는 인식 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
