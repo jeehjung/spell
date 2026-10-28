@@ -1177,8 +1177,24 @@
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
-                const jobId = job.jobId || newGeminiJobId();
-                if (!job.jobId) await savePendingImageJob({ ...job, jobId });
+                let jobId = job.jobId || newGeminiJobId();
+                if (job.jobId) {
+                    const statusUrl = getGeminiApiUrl().replace('/api/gemini', '/api/gemini-jobs') + '?jobId=' + encodeURIComponent(jobId);
+                    const statusResponse = await fetch(statusUrl, { cache: 'no-store' });
+                    if (statusResponse.status === 404) {
+                        // The saved local record outlived its server workflow; retry with a fresh unique ID.
+                        jobId = newGeminiJobId();
+                    } else if (!statusResponse.ok) {
+                        throw new Error(`Could not check the saved background job (HTTP ${statusResponse.status}).`);
+                    } else {
+                        const serverJob = await statusResponse.json();
+                        if (serverJob.status === 'errored' || serverJob.status === 'terminated') {
+                            // Workflow IDs are unique. A failed ID cannot safely be reused for a retry.
+                            jobId = newGeminiJobId();
+                        }
+                    }
+                }
+                await savePendingImageJob({ ...job, jobId, status: 'processing' });
                 const optimizedImage = await optimizeImageForBackground('data:' + (job.mimeType || 'image/jpeg') + ';base64,' + job.base64Data);
                 if (optimizedImage.base64Data !== job.base64Data || optimizedImage.mimeType !== job.mimeType) {
                     await savePendingImageJob({ ...job, ...optimizedImage, jobId });
