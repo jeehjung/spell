@@ -41,7 +41,7 @@ function getRequestOrigin(request) {
     return { allowed: true, corsOrigin: null };
   }
   if (origin === ANDROID_APP_ORIGIN || origin === GITHUB_PAGES_ORIGIN) {
-    return { allowed: true, corsOrigin: ANDROID_APP_ORIGIN };
+    return { allowed: true, corsOrigin: origin };
   }
   return { allowed: false, corsOrigin: null };
 }
