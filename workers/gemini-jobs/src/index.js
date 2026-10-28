@@ -57,7 +57,7 @@ export default class GeminiJobsService extends WorkerEntrypoint {
     }
   }
 
-  async getJob(id) {
+  async getJob(id, acknowledge = false) {
     const instance = await this.env.GEMINI_WORKFLOW.get(id);
     const state = await instance.status();
     const result = {
@@ -66,7 +66,7 @@ export default class GeminiJobsService extends WorkerEntrypoint {
       output: state.output || null,
       error: state.error || null,
     };
-    if (state.status === "complete" || state.status === "errored" || state.status === "terminated") {
+    if (acknowledge && (state.status === "complete" || state.status === "errored" || state.status === "terminated")) {
       try { await instance.delete(); }
       catch { /* Ten-minute instance retention is the cleanup fallback. */ }
     }
