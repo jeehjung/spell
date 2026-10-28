@@ -44,7 +44,8 @@ export async function onRequestGet({ request, env }) {
   }
   if (!env.GEMINI_JOBS) return jsonResponse({ error: { message: "Background job service is not connected yet." } }, 503, corsOrigin);
   try {
-    return jsonResponse(await env.GEMINI_JOBS.getJob(jobId), 200, corsOrigin);
+    const acknowledge = new URL(request.url).searchParams.get("ack") === "1";
+    return jsonResponse(await env.GEMINI_JOBS.getJob(jobId, acknowledge), 200, corsOrigin);
   } catch {
     return jsonResponse({ error: { message: "Background job was not found or has expired." } }, 404, corsOrigin);
   }
