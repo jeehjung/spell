@@ -1,4 +1,5 @@
 const ANDROID_APP_ORIGIN = "https://appassets.androidplatform.net";
+const GITHUB_PAGES_ORIGIN = "https://jeehjung.github.io";
 const MAX_REQUEST_BYTES = 40 * 1024 * 1024;
 const ALLOWED_PAYLOAD_FIELDS = [
   "contents",
@@ -10,9 +11,9 @@ const ALLOWED_PAYLOAD_FIELDS = [
 ];
 
 function corsHeaders(origin) {
-  if (origin !== ANDROID_APP_ORIGIN) return {};
+  if (origin !== ANDROID_APP_ORIGIN && origin !== GITHUB_PAGES_ORIGIN) return {};
   return {
-    "Access-Control-Allow-Origin": ANDROID_APP_ORIGIN,
+    "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Max-Age": "86400",
@@ -39,7 +40,7 @@ function getRequestOrigin(request) {
   if (!origin || origin === sameOrigin) {
     return { allowed: true, corsOrigin: null };
   }
-  if (origin === ANDROID_APP_ORIGIN) {
+  if (origin === ANDROID_APP_ORIGIN || origin === GITHUB_PAGES_ORIGIN) {
     return { allowed: true, corsOrigin: ANDROID_APP_ORIGIN };
   }
   return { allowed: false, corsOrigin: null };
@@ -48,7 +49,7 @@ function getRequestOrigin(request) {
 export async function onRequestOptions({ request }) {
   const origin = request.headers.get("origin");
   const sameOrigin = new URL(request.url).origin;
-  if (origin !== ANDROID_APP_ORIGIN && origin !== sameOrigin) {
+  if (origin !== ANDROID_APP_ORIGIN && origin !== GITHUB_PAGES_ORIGIN && origin !== sameOrigin) {
     return jsonResponse({ error: { message: "Origin not allowed." } }, 403);
   }
   return new Response(null, {
