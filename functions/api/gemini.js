@@ -35,8 +35,14 @@ function jsonResponse(body, status, origin) {
 function getRequestOrigin(request) {
   const origin = request.headers.get("origin");
   const sameOrigin = new URL(request.url).origin;
-  if (origin && origin !== sameOrigin && origin !== ANDROID_APP_ORIGIN) return null;
-  return origin === ANDROID_APP_ORIGIN ? ANDROID_APP_ORIGIN : null;
+
+  if (!origin || origin === sameOrigin) {
+    return { allowed: true, corsOrigin: null };
+  }
+  if (origin === ANDROID_APP_ORIGIN) {
+    return { allowed: true, corsOrigin: ANDROID_APP_ORIGIN };
+  }
+  return { allowed: false, corsOrigin: null };
 }
 
 export async function onRequestOptions({ request }) {
@@ -55,8 +61,8 @@ export async function onRequestOptions({ request }) {
 }
 
 export async function onRequestPost({ request }) {
-  const origin = getRequestOrigin(request);
-  if (request.headers.get("origin") && origin === null) {
+  const { allowed, corsOrigin: origin } = getRequestOrigin(request);
+  if (!allowed) {
     return jsonResponse({ error: { message: "Origin not allowed." } }, 403);
   }
 
