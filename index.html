@@ -649,8 +649,60 @@
             return 'https://spell-766.pages.dev/api/gemini';
         }
 
-        function getGeminiRequestPayload(apiKey, payload) {
-            return { apiKey, model: GEMINI_MODEL, ...payload };
+        function getGeminiRequestPayload(apiKey, payload, jobId) {
+            return { apiKey, model: GEMINI_MODEL, ...payload, jobId };
+        }
+
+        function newGeminiJobId() {
+            return crypto.randomUUID();
+        }
+
+        async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
+            const startResponse = await fetch(getGeminiApiUrl(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(getGeminiRequestPayload(apiKey, payload, jobId))
+            });
+            if (!startResponse.ok) return startResponse;
+            if (startResponse.status !== 202) return startResponse;
+
+            const jobUrl = getGeminiApiUrl().replace(/\\/api\\/gemini$/, '/api/gemini-jobs');
+            const deadline = Date.now() + 7 * 24 * 60 * 60 * 1000;
+            while (Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                const statusResponse = await fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId), { cache: 'no-store' });
+                if (!statusResponse.ok) return statusResponse;
+                const job = await statusResponse.json();
+                if (job.status === 'complete') {
+                    return new Response(JSON.stringify(job.output?.body ?? {}), {
+                        status: job.output?.httpStatus || 200,
+                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+                    });
+                }
+                if (job.status === 'errored' || job.status === 'terminated') {
+                    return new Response(JSON.stringify({ error: job.error || { message: 'Background request failed.' } }), {
+                        status: 502,
+                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+                    });
+                }
+            }
+            throw new Error('서버 작업 상태를 확인하는 데 시간이 너무 오래 걸립니다. 다시 확인해 주세요.');
+        }
+
+        const PENDING_DICTIONARY_JOB_KEY = 'spell_pending_dictionary_job_v1';
+        function getPendingDictionaryJob() {
+            try {
+                const job = JSON.parse(localStorage.getItem(PENDING_DICTIONARY_JOB_KEY) || 'null');
+                return job && Date.now() - job.savedAt < 7 * 24 * 60 * 60 * 1000 ? job : null;
+            } catch {
+                return null;
+            }
+        }
+        function savePendingDictionaryJob(job) {
+            localStorage.setItem(PENDING_DICTIONARY_JOB_KEY, JSON.stringify(job));
+        }
+        function clearPendingDictionaryJob() {
+            localStorage.removeItem(PENDING_DICTIONARY_JOB_KEY);
         }
         const SPEECH_RATE_KEY = 'spell_speech_rate_v1';
         const DEFAULT_SPEECH_RATE = 0.75;
@@ -1671,11 +1723,7 @@
                 // Record each attempted request, including failures, to avoid rapid retry loops.
                 lastDictionaryRequestAt = Date.now();
                 const apiUrl = getGeminiApiUrl();
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-                });
+                const response = await callGeminiInBackground(apiKey, payload);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
@@ -1781,11 +1829,7 @@
                 systemInstruction: { parts: [{ text: prompt }] }
             };
             const apiUrl = getGeminiApiUrl();
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-            });
+            const response = await callGeminiInBackground(apiKey, payload);
             if (!response.ok) {
                 const errText = await response.text();
                 if (response.status === 503 || errText.includes('UNAVAILABLE')) alert(UNAVAILABLE_MSG);
@@ -2039,7 +2083,7 @@
             backToUpload();
         }
 
-        async function extractWordsFromImage(base64Data, mimeType, apiKey) {
+        async function extractWordsFromImage(base64Data, mimeType, apiKey, jobId = newGeminiJobId()) {
             const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (accurate IPA pronunciation including ˈ before the primary-stressed syllable for multisyllabic words when applicable), stressPattern (syllables separated by hyphens with the stressed syllable in ALL CAPS, e.g. ob-SERVE or EN-or-mous; for one-syllable words use the word in uppercase), meaning (common Korean meanings, most common first, numbered on separate lines, EVERY meaning line must start with a Korean part-of-speech label in parentheses, e.g. '1. (명사) 관찰' or '2. (동사) 관찰하다'; use Korean labels such as 명사, 동사, 형용사, 부사, 전치사, 접속사, 대명사; never omit the label), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
             const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic with the primary stress mark ˈ where applicable, stressPattern (hyphenated syllables with the stressed syllable in ALL CAPS), meaning, synonyms (array of common English words), antonyms (array of common English words), exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
 
@@ -2057,13 +2101,7 @@
             };
 
             try {
-                const apiUrl = getGeminiApiUrl();
-
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-                });
+                const response = await callGeminiInBackground(apiKey, payload, jobId);
 
                 if (!response.ok) {
                     const errText = await response.text();
@@ -2489,11 +2527,7 @@
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     generationConfig: { responseMimeType: "application/json" }
                 };
-                const response = await fetch(getGeminiApiUrl(), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, relatedWordPayload))
-                });
+                const response = await callGeminiInBackground(apiKey, relatedWordPayload);
                 if (!response.ok) {
                     const details = await response.text();
                     throw new Error(response.status === 429 ? OVERQUOTA_MSG : `AI 정보 조회 실패: ${details}`);
@@ -2799,11 +2833,7 @@
 
             try {
                 const apiUrl = getGeminiApiUrl();
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-                });
+                const response = await callGeminiInBackground(apiKey, payload);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
