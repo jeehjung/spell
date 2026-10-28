@@ -162,7 +162,7 @@
             <div class="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <h2 id="loadingText" class="text-base font-bold text-slate-800 mb-1">단어장 분석 중...</h2>
             <p class="text-xs text-slate-400">잠시만 기다려 주세요.</p>
-            <p class="mt-2 text-[11px] text-amber-700 leading-relaxed">인식이 정상적으로 완료되도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
+            <p id="recognitionBackgroundHint" class="mt-2 text-[11px] text-amber-700 leading-relaxed">요청이 서버에 접수될 때까지 잠시 기다려 주세요. 접수된 뒤에는 브라우저를 닫아도 처리됩니다.</p>
         </div>
 
         <!-- Main Word Card View -->
@@ -453,7 +453,7 @@
             <div id="dictLoading" class="hidden py-6 text-center shrink-0">
                 <div class="w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                 <p class="text-xs text-slate-500 font-medium">사전 조회 중...</p>
-                <p class="mt-2 text-[11px] text-amber-700 leading-relaxed">검색이 정상적으로 완료되도록 브라우저를 켜둔 상태로 유지해 주세요.</p>
+                <p id="dictionaryBackgroundHint" class="mt-2 text-[11px] text-amber-700 leading-relaxed">요청이 서버에 접수될 때까지 잠시 기다려 주세요. 접수된 뒤에는 브라우저를 닫아도 처리됩니다.</p>
             </div>
 
             <!-- Result Display Area -->
@@ -649,8 +649,105 @@
             return 'https://spell-766.pages.dev/api/gemini';
         }
 
-        function getGeminiRequestPayload(apiKey, payload) {
-            return { apiKey, model: GEMINI_MODEL, ...payload };
+        function getGeminiRequestPayload(apiKey, payload, jobId) {
+            return { apiKey, model: GEMINI_MODEL, ...payload, jobId };
+        }
+
+        function newGeminiJobId() {
+            return crypto.randomUUID();
+        }
+
+        async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
+            const startResponse = await fetch(getGeminiApiUrl(), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(getGeminiRequestPayload(apiKey, payload, jobId))
+            });
+            if (!startResponse.ok) return startResponse;
+            if (startResponse.status !== 202) return startResponse;
+
+            ['recognitionBackgroundHint', 'dictionaryBackgroundHint'].forEach(id => {
+                const hint = document.getElementById(id);
+                if (hint) hint.textContent = '서버가 작업을 이어서 처리합니다. 브라우저를 닫아도 되고, 다시 열어 결과를 확인할 수 있어요.';
+            });
+
+            const jobUrl = getGeminiApiUrl().replace('/api/gemini', '/api/gemini-jobs');
+            const deadline = Date.now() + 7 * 24 * 60 * 60 * 1000;
+            while (Date.now() < deadline) {
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                const statusResponse = await fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId), { cache: 'no-store' });
+                if (!statusResponse.ok) return statusResponse;
+                const job = await statusResponse.json();
+                if (job.status === 'complete') {
+                    fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId) + '&ack=1', { cache: 'no-store' }).catch(() => {});
+                    return new Response(JSON.stringify(job.output?.body ?? {}), {
+                        status: job.output?.httpStatus || 200,
+                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+                    });
+                }
+                if (job.status === 'errored' || job.status === 'terminated') {
+                    return new Response(JSON.stringify({ error: job.error || { message: 'Background request failed.' } }), {
+                        status: 502,
+                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
+                    });
+                }
+            }
+            throw new Error('서버 작업 상태를 확인하는 데 시간이 너무 오래 걸립니다. 다시 확인해 주세요.');
+        }
+
+        const PENDING_DICTIONARY_JOB_KEY = 'spell_pending_dictionary_job_v1';
+        function getPendingDictionaryJob() {
+            try {
+                const job = JSON.parse(localStorage.getItem(PENDING_DICTIONARY_JOB_KEY) || 'null');
+                return job && Date.now() - job.savedAt < 7 * 24 * 60 * 60 * 1000 ? job : null;
+            } catch {
+                return null;
+            }
+        }
+        function savePendingDictionaryJob(job) {
+            localStorage.setItem(PENDING_DICTIONARY_JOB_KEY, JSON.stringify(job));
+        }
+        function clearPendingDictionaryJob() {
+            localStorage.removeItem(PENDING_DICTIONARY_JOB_KEY);
+        }
+
+        async function optimizeImageForBackground(dataUrl) {
+            const originalBase64 = String(dataUrl).split(',')[1] || '';
+            const originalMimeType = String(dataUrl).split(';')[0].slice(5) || 'image/jpeg';
+            if (originalBase64.length <= 700000) {
+                return { base64Data: originalBase64, mimeType: originalMimeType };
+            }
+            const image = new Image();
+            image.src = dataUrl;
+            await new Promise((resolve, reject) => {
+                image.onload = resolve;
+                image.onerror = () => reject(new Error('사진을 읽지 못했습니다.'));
+            });
+            let scale = Math.min(1, 2000 / Math.max(image.naturalWidth, image.naturalHeight));
+            while (scale >= 0.4) {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+                canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+                const context = canvas.getContext('2d');
+                context.fillStyle = '#ffffff';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                for (const quality of [0.82, 0.72, 0.62, 0.52]) {
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+                    if (!blob) continue;
+                    if (blob.size > 0 && blob.size <= 520000) {
+                        const compressedDataUrl = await new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result);
+                            reader.onerror = () => reject(new Error('사진을 준비하지 못했습니다.'));
+                            reader.readAsDataURL(blob);
+                        });
+                        return { base64Data: String(compressedDataUrl).split(',')[1], mimeType: 'image/jpeg' };
+                    }
+                }
+                scale *= 0.85;
+            }
+            throw new Error('사진 용량을 줄이지 못했습니다. 더 작은 사진으로 다시 시도해 주세요.');
         }
         const SPEECH_RATE_KEY = 'spell_speech_rate_v1';
         const DEFAULT_SPEECH_RATE = 0.75;
@@ -1080,7 +1177,13 @@
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
-                await extractWordsFromImage(job.base64Data, job.mimeType, apiKey);
+                const jobId = job.jobId || newGeminiJobId();
+                if (!job.jobId) await savePendingImageJob({ ...job, jobId });
+                const optimizedImage = await optimizeImageForBackground('data:' + (job.mimeType || 'image/jpeg') + ';base64,' + job.base64Data);
+                if (optimizedImage.base64Data !== job.base64Data || optimizedImage.mimeType !== job.mimeType) {
+                    await savePendingImageJob({ ...job, ...optimizedImage, jobId });
+                }
+                await extractWordsFromImage(optimizedImage.base64Data, optimizedImage.mimeType, apiKey, jobId);
             } catch (err) {
                 console.error('이미지 인식 재시도 실패:', err);
                 backToUpload();
@@ -1604,7 +1707,8 @@
         }
 
         function openDictionaryModal() {
-            document.getElementById('dictQueryInput').value = '';
+            const pendingDictionaryJob = getPendingDictionaryJob();
+            document.getElementById('dictQueryInput').value = pendingDictionaryJob?.query || '';
             document.getElementById('dictLoading').classList.add('hidden');
             document.getElementById('dictResultArea').classList.add('hidden');
             document.getElementById('dictAddAction').classList.add('hidden');
@@ -1612,6 +1716,10 @@
             renderDictionaryHistory();
             document.getElementById('dictionaryModal').classList.remove('hidden');
             document.getElementById('dictQueryInput').focus();
+            if (pendingDictionaryJob) {
+                document.getElementById('dictLoading').classList.remove('hidden');
+                setTimeout(() => lookupDictionaryWord(), 0);
+            }
         }
 
         function closeDictionaryModal() {
@@ -1668,14 +1776,12 @@
             };
 
             try {
-                // Record each attempted request, including failures, to avoid rapid retry loops.
+                // Save the job ID before sending so this lookup can be resumed after reopening the browser.
                 lastDictionaryRequestAt = Date.now();
-                const apiUrl = getGeminiApiUrl();
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-                });
+                const savedDictionaryJob = getPendingDictionaryJob();
+                const jobId = savedDictionaryJob?.query === query ? savedDictionaryJob.jobId : newGeminiJobId();
+                savePendingDictionaryJob({ jobId, query, savedAt: Date.now() });
+                const response = await callGeminiInBackground(apiKey, payload, jobId);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
@@ -1686,6 +1792,7 @@
                     } else {
                         alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
                     }
+                    clearPendingDictionaryJob();
                     return;
                 }
 
@@ -1698,6 +1805,7 @@
                 responseText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
                 const jsonMatch = responseText.match(/\{[\s\S]*\}/);
                 currentDictWord = JSON.parse(jsonMatch ? jsonMatch[0] : responseText);
+                clearPendingDictionaryJob();
                 saveDictionaryHistory(query, currentDictWord);
                 showDictionaryWord(currentDictWord, query);
             } catch (err) {
@@ -1747,12 +1855,15 @@
 
             const reader = new FileReader();
             reader.onload = async function(e) {
-                const base64Data = e.target.result.split(',')[1];
                 imageRecognitionActive = true;
                 try {
+                    const optimizedImage = await optimizeImageForBackground(e.target.result);
+                    const base64Data = optimizedImage.base64Data;
+                    const mimeType = optimizedImage.mimeType;
+                    const jobId = newGeminiJobId();
                     await clearPendingImageJob();
-                    await savePendingImageJob({ base64Data, mimeType: file.type || 'image/jpeg', savedAt: new Date().toISOString(), status: 'processing' });
-                    await extractWordsFromImage(base64Data, file.type || 'image/jpeg', apiKey);
+                    await savePendingImageJob({ base64Data, mimeType, jobId, savedAt: new Date().toISOString(), status: 'processing' });
+                    await extractWordsFromImage(base64Data, mimeType, apiKey, jobId);
                 } catch (err) {
                     console.error("Extraction error:", err);
                     alert('이미지 저장 또는 인식 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
@@ -1781,11 +1892,7 @@
                 systemInstruction: { parts: [{ text: prompt }] }
             };
             const apiUrl = getGeminiApiUrl();
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-            });
+            const response = await callGeminiInBackground(apiKey, payload);
             if (!response.ok) {
                 const errText = await response.text();
                 if (response.status === 503 || errText.includes('UNAVAILABLE')) alert(UNAVAILABLE_MSG);
@@ -2039,7 +2146,7 @@
             backToUpload();
         }
 
-        async function extractWordsFromImage(base64Data, mimeType, apiKey) {
+        async function extractWordsFromImage(base64Data, mimeType, apiKey, jobId = newGeminiJobId()) {
             const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (accurate IPA pronunciation including ˈ before the primary-stressed syllable for multisyllabic words when applicable), stressPattern (syllables separated by hyphens with the stressed syllable in ALL CAPS, e.g. ob-SERVE or EN-or-mous; for one-syllable words use the word in uppercase), meaning (common Korean meanings, most common first, numbered on separate lines, EVERY meaning line must start with a Korean part-of-speech label in parentheses, e.g. '1. (명사) 관찰' or '2. (동사) 관찰하다'; use Korean labels such as 명사, 동사, 형용사, 부사, 전치사, 접속사, 대명사; never omit the label), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
             const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic with the primary stress mark ˈ where applicable, stressPattern (hyphenated syllables with the stressed syllable in ALL CAPS), meaning, synonyms (array of common English words), antonyms (array of common English words), exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
 
@@ -2057,13 +2164,7 @@
             };
 
             try {
-                const apiUrl = getGeminiApiUrl();
-
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-                });
+                const response = await callGeminiInBackground(apiKey, payload, jobId);
 
                 if (!response.ok) {
                     const errText = await response.text();
@@ -2489,11 +2590,7 @@
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     generationConfig: { responseMimeType: "application/json" }
                 };
-                const response = await fetch(getGeminiApiUrl(), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, relatedWordPayload))
-                });
+                const response = await callGeminiInBackground(apiKey, relatedWordPayload);
                 if (!response.ok) {
                     const details = await response.text();
                     throw new Error(response.status === 429 ? OVERQUOTA_MSG : `AI 정보 조회 실패: ${details}`);
@@ -2799,11 +2896,7 @@
 
             try {
                 const apiUrl = getGeminiApiUrl();
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(getGeminiRequestPayload(apiKey, payload))
-                });
+                const response = await callGeminiInBackground(apiKey, payload);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();

@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spell-gemini-jobs",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-29",
+  "workflows": [
+    {
+      "name": "spell-gemini-job-workflow",
+      "binding": "GEMINI_WORKFLOW",
+      "class_name": "GeminiJobWorkflow",
+      "default_retention": {
+        "success_retention": "10 minutes",
+        "error_retention": "10 minutes"
+      }
+    }
+  ]
+}
