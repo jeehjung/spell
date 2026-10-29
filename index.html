@@ -664,6 +664,10 @@
             return `오류 코드: ${status}\n원인: ${explanations[Number(status)] || 'Gemini API 요청을 처리하지 못했습니다.'}${detail ? `\n상세: ${detail}` : ''}\n조치: API 키와 인터넷 연결을 확인하고 잠시 후 다시 시도해 주세요.`;
         }
 
+        function newGeminiJobId() {
+            return crypto.randomUUID();
+        }
+
         // GitHub Pages-only mode: call Gemini directly from the browser.
         // No Cloudflare API endpoint or server-side background job is used.
         async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
