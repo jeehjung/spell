@@ -716,12 +716,58 @@
             });
 
             const jobUrl = getGeminiApiUrl().replace('/api/gemini', '/api/gemini-jobs');
-            const deadline = Date.now() + 7 * 24 * 60 * 60 * 1000;
+            // Never leave the UI waiting indefinitely: cap polling and surface stalled jobs.
+            const startedAt = Date.now();
+            const deadline = startedAt + 5 * 60 * 1000;
+            let consecutivePollFailures = 0;
             while (Date.now() < deadline) {
                 await new Promise(resolve => setTimeout(resolve, 1500));
-                const statusResponse = await fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId), { cache: 'no-store' });
-                if (!statusResponse.ok) return statusResponse;
+                const remainingMs = deadline - Date.now();
+                if (remainingMs <= 0) break;
+
+                const controller = new AbortController();
+                const requestTimer = setTimeout(() => controller.abort(), Math.min(15000, remainingMs));
+                let statusResponse;
+                try {
+                    statusResponse = await fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId), {
+                        cache: 'no-store',
+                        signal: controller.signal
+                    });
+                    clearTimeout(requestTimer);
+                } catch (pollError) {
+                    clearTimeout(requestTimer);
+                    consecutivePollFailures++;
+                    console.warn('Gemini 작업 상태 확인 실패:', pollError);
+                    if (consecutivePollFailures >= 3) {
+                        throw new Error('서버 작업 상태를 3회 연속 확인하지 못했습니다. 네트워크 또는 Cloudflare 응답을 확인한 뒤 다시 시도해 주세요.');
+                    }
+                    continue;
+                }
+
+                if (!statusResponse.ok) {
+                    if (statusResponse.status >= 500 && statusResponse.status !== 524) {
+                        consecutivePollFailures++;
+                        if (consecutivePollFailures >= 3) {
+                            const errorBody = await statusResponse.text().catch(() => '');
+                            throw new Error(describeApiError(statusResponse.status, errorBody));
+                        }
+                        continue;
+                    }
+                    if (statusResponse.status === 524) {
+                        consecutivePollFailures++;
+                        if (consecutivePollFailures < 3) continue;
+                    }
+                    return statusResponse;
+                }
+
+                consecutivePollFailures = 0;
                 const job = await statusResponse.json();
+                const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
+                ['recognitionBackgroundHint', 'dictionaryBackgroundHint'].forEach(id => {
+                    const hint = document.getElementById(id);
+                    if (hint) hint.textContent = `서버에서 처리 중입니다… 경과 시간 ${elapsedSeconds}초`;
+                });
+
                 if (job.status === 'complete') {
                     fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId) + '&ack=1', { cache: 'no-store' }).catch(() => {});
                     return new Response(JSON.stringify(job.output?.body ?? {}), {
@@ -736,7 +782,7 @@
                     });
                 }
             }
-            throw new Error('서버 작업 상태를 확인하는 데 시간이 너무 오래 걸립니다. 다시 확인해 주세요.');
+            throw new Error('5분 동안 인식 결과가 도착하지 않았습니다. 서버 작업이 멈췄거나 응답이 지연됐을 수 있습니다. 무작정 기다리지 말고 잠시 후 다시 시도해 주세요.');
         }
 
         const PENDING_DICTIONARY_JOB_KEY = 'spell_pending_dictionary_job_v1';
