@@ -649,6 +649,50 @@
             return 'https://spell-766.pages.dev/api/gemini';
         }
 
+        // Convert proxy/server errors into actionable Korean messages instead of exposing raw HTML.
+        function describeApiError(status, body = '') {
+            const raw = String(body || '').trim();
+            const plain = raw.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+                .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&nbsp;/gi, ' ')
+                .replace(/&amp;/gi, '&')
+                .replace(/\s+/g, ' ')
+                .trim();
+            let serverDetail = '';
+            try {
+                const parsed = JSON.parse(raw);
+                serverDetail = parsed?.error?.message || parsed?.message || '';
+            } catch {}
+            const detail = serverDetail || (plain && !/cloudflare|gateway time-out|error 52[0-9]|<html/i.test(plain) ? plain.slice(0, 500) : '');
+
+            const known = {
+                400: '요청 형식이 올바르지 않습니다. 사진을 다시 선택하거나 입력값을 확인해 주세요.',
+                401: '인증에 실패했습니다. Gemini API 키가 올바른지 확인해 주세요.',
+                403: '요청이 거부되었습니다. API 키 권한, API 사용 설정 또는 접근 권한을 확인해 주세요.',
+                413: '사진 데이터가 너무 큽니다. 사진을 자르거나 해상도를 낮춘 뒤 다시 시도해 주세요.',
+                429: '요청 한도 또는 사용량 제한에 도달했습니다. 잠시 기다린 뒤 다시 시도해 주세요.',
+                500: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+                502: '중간 서버가 작업 서버로부터 유효한 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.',
+                503: '서버가 일시적으로 이용 불가능합니다. 잠시 후 다시 시도해 주세요.',
+                504: '서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.',
+                520: 'Cloudflare가 원본 서버에서 예상하지 못한 응답을 받았습니다. 서버 로그를 확인해야 합니다.',
+                521: 'Cloudflare가 원본 서버에 연결하지 못했습니다. 서버가 실행 중인지 확인해야 합니다.',
+                522: 'Cloudflare가 원본 서버에 연결하는 동안 시간 초과가 발생했습니다.',
+                523: 'Cloudflare가 원본 서버를 찾을 수 없습니다. 서버 주소 또는 라우팅 설정을 확인해야 합니다.',
+                524: 'Cloudflare는 서버에 연결했지만 제한 시간 안에 응답을 받지 못했습니다. 사진 인식 작업이 오래 걸리거나 서버/작업 상태 확인 요청이 지연됐을 수 있습니다.',
+                525: 'Cloudflare와 원본 서버 사이의 SSL/TLS 연결에 실패했습니다.',
+                526: '원본 서버의 SSL 인증서를 검증할 수 없습니다.'
+            };
+            const explanation = known[Number(status)] || `HTTP ${status}: 서버가 요청을 처리하지 못했습니다.`;
+            const nextStep = Number(status) === 524
+                ? '잠시 후 다시 시도해 주세요. 반복되면 Cloudflare 작업 상태 확인 또는 Gemini 응답 지연 여부를 점검해야 합니다.'
+                : Number(status) === 429
+                    ? 'API 사용량/요청 한도와 Gemini 대시보드를 확인해 주세요.'
+                    : '잠시 후 다시 시도해 주세요. 같은 오류가 반복되면 아래 상세 정보를 확인해 주세요.';
+            return `오류 코드: ${status}\n원인: ${explanation}${detail ? `\n서버 상세: ${detail}` : ''}\n조치: ${nextStep}`;
+        }
+
         function getGeminiRequestPayload(apiKey, payload, jobId) {
             return { apiKey, model: GEMINI_MODEL, ...payload, jobId };
         }
@@ -1818,7 +1862,7 @@
                     } else if (response.status === 429 || errorDetails.includes("RESOURCE_EXHAUSTED") || errorDetails.includes("quota")) {
                         alert(OVERQUOTA_MSG);
                     } else {
-                        alert(`API 요청 실패 (${response.status}): ${errorDetails}`);
+                        alert(`API 요청 실패\n${describeApiError(response.status, errorDetails)}`);
                     }
                     clearPendingDictionaryJob();
                     return;
@@ -1932,7 +1976,7 @@
                     const response = await callGeminiInBackground(apiKey, payload);
                     if (!response.ok) {
                         const errText = await response.text();
-                        const detail = `HTTP ${response.status}: ${errText.slice(0, 700)}`;
+                        const detail = describeApiError(response.status, errText);
                         const error = new Error(detail);
                         error.status = response.status;
                         error.responseBody = errText;
@@ -2261,7 +2305,7 @@
                     } else if (response.status === 429 || errText.includes("RESOURCE_EXHAUSTED") || errText.includes("quota")) {
                         alert(OVERQUOTA_MSG);
                     } else {
-                        alert(`API 오류 (${response.status}): ${errText}`);
+                        alert(describeApiError(response.status, errText));
                     }
                     throw new Error(`API 오류 (${response.status})`);
                 }
