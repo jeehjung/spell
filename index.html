@@ -645,144 +645,29 @@
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
-        function getGeminiApiUrl() {
-            return 'https://spell-766.pages.dev/api/gemini';
-        }
-
-        // Convert proxy/server errors into actionable Korean messages instead of exposing raw HTML.
-        function describeApiError(status, body = '') {
-            const raw = String(body || '').trim();
-            const plain = raw.replace(/<script[\s\S]*?<\/script>/gi, ' ')
-                .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-                .replace(/<[^>]+>/g, ' ')
-                .replace(/&nbsp;/gi, ' ')
-                .replace(/&amp;/gi, '&')
-                .replace(/\s+/g, ' ')
-                .trim();
-            let serverDetail = '';
-            try {
-                const parsed = JSON.parse(raw);
-                serverDetail = parsed?.error?.message || parsed?.message || '';
-            } catch {}
-            const detail = serverDetail || (plain && !/cloudflare|gateway time-out|error 52[0-9]|<html/i.test(plain) ? plain.slice(0, 500) : '');
-
-            const known = {
-                400: '요청 형식이 올바르지 않습니다. 사진을 다시 선택하거나 입력값을 확인해 주세요.',
-                401: '인증에 실패했습니다. Gemini API 키가 올바른지 확인해 주세요.',
-                403: '요청이 거부되었습니다. API 키 권한, API 사용 설정 또는 접근 권한을 확인해 주세요.',
-                413: '사진 데이터가 너무 큽니다. 사진을 자르거나 해상도를 낮춘 뒤 다시 시도해 주세요.',
-                429: '요청 한도 또는 사용량 제한에 도달했습니다. 잠시 기다린 뒤 다시 시도해 주세요.',
-                500: '서버 내부 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
-                502: '중간 서버가 작업 서버로부터 유효한 응답을 받지 못했습니다. 잠시 후 다시 시도해 주세요.',
-                503: '서버가 일시적으로 이용 불가능합니다. 잠시 후 다시 시도해 주세요.',
-                504: '서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.',
-                520: 'Cloudflare가 원본 서버에서 예상하지 못한 응답을 받았습니다. 서버 로그를 확인해야 합니다.',
-                521: 'Cloudflare가 원본 서버에 연결하지 못했습니다. 서버가 실행 중인지 확인해야 합니다.',
-                522: 'Cloudflare가 원본 서버에 연결하는 동안 시간 초과가 발생했습니다.',
-                523: 'Cloudflare가 원본 서버를 찾을 수 없습니다. 서버 주소 또는 라우팅 설정을 확인해야 합니다.',
-                524: 'Cloudflare는 서버에 연결했지만 제한 시간 안에 응답을 받지 못했습니다. 사진 인식 작업이 오래 걸리거나 서버/작업 상태 확인 요청이 지연됐을 수 있습니다.',
-                525: 'Cloudflare와 원본 서버 사이의 SSL/TLS 연결에 실패했습니다.',
-                526: '원본 서버의 SSL 인증서를 검증할 수 없습니다.'
-            };
-            const explanation = known[Number(status)] || `HTTP ${status}: 서버가 요청을 처리하지 못했습니다.`;
-            const nextStep = Number(status) === 524
-                ? '잠시 후 다시 시도해 주세요. 반복되면 Cloudflare 작업 상태 확인 또는 Gemini 응답 지연 여부를 점검해야 합니다.'
-                : Number(status) === 429
-                    ? 'API 사용량/요청 한도와 Gemini 대시보드를 확인해 주세요.'
-                    : '잠시 후 다시 시도해 주세요. 같은 오류가 반복되면 아래 상세 정보를 확인해 주세요.';
-            return `오류 코드: ${status}\n원인: ${explanation}${detail ? `\n서버 상세: ${detail}` : ''}\n조치: ${nextStep}`;
-        }
-
-        function getGeminiRequestPayload(apiKey, payload, jobId) {
-            return { apiKey, model: GEMINI_MODEL, ...payload, jobId };
-        }
-
-        function newGeminiJobId() {
-            return crypto.randomUUID();
-        }
-
+        // GitHub Pages-only mode: call Gemini directly from the browser.
+        // No Cloudflare API endpoint or server-side background job is used.
         async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
-            const startResponse = await fetch(getGeminiApiUrl(), {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(getGeminiRequestPayload(apiKey, payload, jobId))
-            });
-            if (!startResponse.ok) return startResponse;
-            if (startResponse.status !== 202) return startResponse;
-
-            ['recognitionBackgroundHint', 'dictionaryBackgroundHint'].forEach(id => {
-                const hint = document.getElementById(id);
-                if (hint) hint.textContent = '서버가 작업을 이어서 처리합니다. 브라우저를 닫아도 되고, 다시 열어 결과를 확인할 수 있어요.';
-            });
-
-            const jobUrl = getGeminiApiUrl().replace('/api/gemini', '/api/gemini-jobs');
-            // Never leave the UI waiting indefinitely: cap polling and surface stalled jobs.
-            const startedAt = Date.now();
-            const deadline = startedAt + 5 * 60 * 1000;
-            let consecutivePollFailures = 0;
-            while (Date.now() < deadline) {
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                const remainingMs = deadline - Date.now();
-                if (remainingMs <= 0) break;
-
-                const controller = new AbortController();
-                const requestTimer = setTimeout(() => controller.abort(), Math.min(15000, remainingMs));
-                let statusResponse;
-                try {
-                    statusResponse = await fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId), {
-                        cache: 'no-store',
+            const controller = new AbortController();
+            const requestTimer = setTimeout(() => controller.abort(), 180000);
+            try {
+                return await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
                         signal: controller.signal
-                    });
-                    clearTimeout(requestTimer);
-                } catch (pollError) {
-                    clearTimeout(requestTimer);
-                    consecutivePollFailures++;
-                    console.warn('Gemini 작업 상태 확인 실패:', pollError);
-                    if (consecutivePollFailures >= 3) {
-                        throw new Error('서버 작업 상태를 3회 연속 확인하지 못했습니다. 네트워크 또는 Cloudflare 응답을 확인한 뒤 다시 시도해 주세요.');
                     }
-                    continue;
+                );
+            } catch (error) {
+                if (error?.name === 'AbortError') {
+                    throw new Error('Gemini 요청이 3분 안에 완료되지 않아 중단했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.');
                 }
-
-                if (!statusResponse.ok) {
-                    if (statusResponse.status >= 500 && statusResponse.status !== 524) {
-                        consecutivePollFailures++;
-                        if (consecutivePollFailures >= 3) {
-                            const errorBody = await statusResponse.text().catch(() => '');
-                            throw new Error(describeApiError(statusResponse.status, errorBody));
-                        }
-                        continue;
-                    }
-                    if (statusResponse.status === 524) {
-                        consecutivePollFailures++;
-                        if (consecutivePollFailures < 3) continue;
-                    }
-                    return statusResponse;
-                }
-
-                consecutivePollFailures = 0;
-                const job = await statusResponse.json();
-                const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
-                ['recognitionBackgroundHint', 'dictionaryBackgroundHint'].forEach(id => {
-                    const hint = document.getElementById(id);
-                    if (hint) hint.textContent = `서버에서 처리 중입니다… 경과 시간 ${elapsedSeconds}초`;
-                });
-
-                if (job.status === 'complete') {
-                    fetch(jobUrl + '?jobId=' + encodeURIComponent(jobId) + '&ack=1', { cache: 'no-store' }).catch(() => {});
-                    return new Response(JSON.stringify(job.output?.body ?? {}), {
-                        status: job.output?.httpStatus || 200,
-                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
-                    });
-                }
-                if (job.status === 'errored' || job.status === 'terminated') {
-                    return new Response(JSON.stringify({ error: job.error || { message: 'Background request failed.' } }), {
-                        status: 502,
-                        headers: { 'Content-Type': 'application/json; charset=utf-8' }
-                    });
-                }
+                throw new Error('Gemini API에 직접 연결하지 못했습니다. 인터넷 연결과 API 키를 확인해 주세요. ' + (error?.message || ''));
+            } finally {
+                clearTimeout(requestTimer);
             }
-            throw new Error('5분 동안 인식 결과가 도착하지 않았습니다. 서버 작업이 멈췄거나 응답이 지연됐을 수 있습니다. 무작정 기다리지 말고 잠시 후 다시 시도해 주세요.');
         }
 
         const PENDING_DICTIONARY_JOB_KEY = 'spell_pending_dictionary_job_v1';
@@ -1279,23 +1164,7 @@
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
-                let jobId = job.jobId || newGeminiJobId();
-                if (job.jobId) {
-                    const statusUrl = getGeminiApiUrl().replace('/api/gemini', '/api/gemini-jobs') + '?jobId=' + encodeURIComponent(jobId);
-                    const statusResponse = await fetch(statusUrl, { cache: 'no-store' });
-                    if (statusResponse.status === 404) {
-                        // The saved local record outlived its server workflow; retry with a fresh unique ID.
-                        jobId = newGeminiJobId();
-                    } else if (!statusResponse.ok) {
-                        throw new Error(`Could not check the saved background job (HTTP ${statusResponse.status}).`);
-                    } else {
-                        const serverJob = await statusResponse.json();
-                        if (serverJob.status === 'errored' || serverJob.status === 'terminated') {
-                            // Workflow IDs are unique. A failed ID cannot safely be reused for a retry.
-                            jobId = newGeminiJobId();
-                        }
-                    }
-                }
+                const jobId = newGeminiJobId();
                 await savePendingImageJob({ ...job, jobId, status: 'processing' });
                 const optimizedImage = await optimizeImageForBackground('data:' + (job.mimeType || 'image/jpeg') + ';base64,' + job.base64Data);
                 if (optimizedImage.base64Data !== job.base64Data || optimizedImage.mimeType !== job.mimeType) {
@@ -3073,7 +2942,6 @@
             };
 
             try {
-                const apiUrl = getGeminiApiUrl();
                 const response = await callGeminiInBackground(apiKey, payload);
 
                 if (!response.ok) {
