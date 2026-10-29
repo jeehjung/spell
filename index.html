@@ -1872,7 +1872,8 @@
                     await extractWordsFromImage(base64Data, mimeType, apiKey, jobId);
                 } catch (err) {
                     console.error("Extraction error:", err);
-                    alert('이미지 저장 또는 인식 처리 중 문제가 발생했습니다. 다시 시도해 주세요.');
+                    const detail = String(err?.message || err || '알 수 없는 오류');
+                    alert('사진 인식 처리에 실패했습니다.\n\n오류 내용: ' + detail + '\n\n인터넷 연결과 Gemini API Key를 확인한 뒤 다시 시도해 주세요.');
                     backToUpload();
                 } finally {
                     imageRecognitionActive = false;
