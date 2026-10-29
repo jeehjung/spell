@@ -645,6 +645,25 @@
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
+        function describeApiError(status, body = '') {
+            let detail = '';
+            try {
+                const parsed = JSON.parse(String(body || ''));
+                detail = parsed?.error?.message || parsed?.message || '';
+            } catch {}
+            const explanations = {
+                400: 'Gemini API 요청 형식이 올바르지 않습니다.',
+                401: 'API 키 인증에 실패했습니다. 키를 확인해 주세요.',
+                403: '요청이 거부되었습니다. API 키 권한과 API 사용 설정을 확인해 주세요.',
+                413: '요청 데이터가 너무 큽니다. 사진 크기를 줄여 다시 시도해 주세요.',
+                429: 'Gemini API 사용량 또는 요청 한도에 도달했습니다.',
+                500: 'Gemini 서버 내부 오류입니다.',
+                503: 'Gemini 서비스를 일시적으로 사용할 수 없습니다.',
+                504: 'Gemini 응답 시간이 초과되었습니다.'
+            };
+            return `오류 코드: ${status}\n원인: ${explanations[Number(status)] || 'Gemini API 요청을 처리하지 못했습니다.'}${detail ? `\n상세: ${detail}` : ''}\n조치: API 키와 인터넷 연결을 확인하고 잠시 후 다시 시도해 주세요.`;
+        }
+
         // GitHub Pages-only mode: call Gemini directly from the browser.
         // No Cloudflare API endpoint or server-side background job is used.
         async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
