@@ -1917,20 +1917,74 @@
                     { text: 'Read and transcribe the full English passage in this photo in the original order, from beginning to end. Return only the extracted English text.' },
                     { inlineData: { mimeType, data: base64Data } }
                 ]}],
-                systemInstruction: { parts: [{ text: prompt }] }
+                systemInstruction: { parts: [{ text: prompt }] },
+                generationConfig: {
+                    temperature: 0.1,
+                    maxOutputTokens: 4096
+                }
             };
-            const apiUrl = getGeminiApiUrl();
-            const response = await callGeminiInBackground(apiKey, payload);
-            if (!response.ok) {
-                const errText = await response.text();
-                if (response.status === 503 || errText.includes('UNAVAILABLE')) alert(UNAVAILABLE_MSG);
-                else if (response.status === 429 || errText.includes('RESOURCE_EXHAUSTED') || errText.includes('quota')) alert(OVERQUOTA_MSG);
-                else alert(`책읽기모드 API 오류 (${response.status}): ${errText}`);
-                throw new Error('책읽기모드 API 오류');
+
+            // Retry the passage-only OCR once for transient failures or empty model output.
+            // This does not rerun the already-successful vocabulary recognition.
+            let lastError = null;
+            for (let attempt = 1; attempt <= 2; attempt++) {
+                try {
+                    const response = await callGeminiInBackground(apiKey, payload);
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        const detail = `HTTP ${response.status}: ${errText.slice(0, 700)}`;
+                        const error = new Error(detail);
+                        error.status = response.status;
+                        error.responseBody = errText;
+                        // Quota/auth/client errors are not likely to improve on an immediate retry.
+                        if (response.status === 429 || response.status === 400 || response.status === 401 || response.status === 403) {
+                            throw error;
+                        }
+                        throw error;
+                    }
+
+                    const result = await response.json();
+                    const candidate = result.candidates?.[0];
+                    const extracted = candidate?.content?.parts?.map(part => part.text || '').join('\n').trim() || '';
+                    const cleaned = extracted.replace(/^```(?:text)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+                    if (cleaned) return cleaned;
+
+                    const blockReason = result.promptFeedback?.blockReason;
+                    const finishReason = candidate?.finishReason;
+                    const diagnostic = blockReason
+                        ? `본문 OCR이 안전성 필터에 의해 차단되었습니다 (blockReason: ${blockReason}).`
+                        : candidate
+                            ? `Gemini가 본문 텍스트를 반환하지 않았습니다 (finishReason: ${finishReason || 'unknown'}).`
+                            : 'Gemini 응답에 candidates 항목이 없습니다.';
+                    const emptyError = new Error(diagnostic);
+                    emptyError.blocked = Boolean(blockReason);
+                    emptyError.emptyOutput = true;
+                    if (blockReason) throw emptyError;
+                    throw emptyError;
+                } catch (error) {
+                    lastError = error;
+                    console.warn(`본문 OCR 시도 ${attempt}/2 실패:`, {
+                        message: error?.message || String(error),
+                        status: error?.status || null,
+                        emptyOutput: Boolean(error?.emptyOutput),
+                        blocked: Boolean(error?.blocked)
+                    });
+                    const nonRetryableStatus = [400, 401, 403, 429].includes(error?.status);
+                    if (attempt === 2 || nonRetryableStatus || error?.blocked) break;
+                    await new Promise(resolve => setTimeout(resolve, 700));
+                }
             }
-            const result = await response.json();
-            const extracted = result.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('\n').trim() || '';
-            return extracted.replace(/^```(?:text)?\s*/i, '').replace(/\s*```$/, '').trim();
+
+            const message = lastError?.message || '알 수 없는 오류';
+            if (lastError?.status === 503 || message.includes('UNAVAILABLE')) {
+                alert(UNAVAILABLE_MSG);
+            } else if (lastError?.status === 429 || message.includes('RESOURCE_EXHAUSTED') || message.toLowerCase().includes('quota')) {
+                alert(OVERQUOTA_MSG);
+            } else {
+                alert(`본문 인식 실패: ${message}\n\n단어 공부는 계속 사용할 수 있습니다. 사진의 본문이 선명하게 보이는지 확인한 뒤 다시 시도해 주세요.`);
+            }
+            throw new Error(`본문 OCR 실패: ${message}`);
         }
 
         function splitBookTextIntoChunks(text) {
