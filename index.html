@@ -1773,11 +1773,21 @@
         let dictionaryVoiceActive = false;
         let dictionaryVoiceCancelled = false;
         let dictionaryVoiceTimer = null;
+        let dictionaryMeterContext = null;
+        let dictionaryMeterInterval = null;
+        let dictionarySpeechDetected = false;
+        let dictionaryLastSpeechAt = 0;
 
         function resetDictionaryVoiceButton() {
             dictionaryVoiceActive = false;
             if (dictionaryVoiceTimer) clearTimeout(dictionaryVoiceTimer);
             dictionaryVoiceTimer = null;
+            if (dictionaryMeterInterval) clearInterval(dictionaryMeterInterval);
+            dictionaryMeterInterval = null;
+            if (dictionaryMeterContext) {
+                dictionaryMeterContext.close().catch(() => {});
+                dictionaryMeterContext = null;
+            }
             const button = document.getElementById('dictVoiceSearchBtn');
             if (button) {
                 button.disabled = false;
@@ -1947,13 +1957,47 @@
                 dictionaryVoiceActive = true;
                 button.classList.remove('bg-rose-50', 'text-rose-700', 'border-rose-200');
                 button.classList.add('bg-rose-600', 'text-white', 'border-rose-600');
-                button.innerHTML = '<i class="fa-solid fa-stop"></i><span>녹음 중… 누르면 분석</span>';
-                status.textContent = '영어 또는 한국어로 검색할 단어를 말한 뒤 버튼을 눌러 주세요. 최대 8초 녹음됩니다.';
+                button.innerHTML = '<i class="fa-solid fa-microphone-lines"></i><span>녹음 중… 말이 끝나면 자동 종료</span>';
+                status.textContent = '영어 또는 한국어로 말해 주세요. 말이 끝나고 약 1.3초간 조용하면 자동으로 분석합니다.';
                 status.classList.remove('hidden');
-                dictionaryMediaRecorder.start();
-                dictionaryVoiceTimer = setTimeout(() => {
-                    if (dictionaryMediaRecorder && dictionaryMediaRecorder.state === 'recording') dictionaryMediaRecorder.stop();
-                }, 8000);
+                dictionaryMediaRecorder.start(200);
+
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) throw new Error('이 브라우저는 오디오 무음 감지를 지원하지 않습니다.');
+                dictionaryMeterContext = new AudioContextClass();
+                const meterSource = dictionaryMeterContext.createMediaStreamSource(dictionaryAudioStream);
+                const analyser = dictionaryMeterContext.createAnalyser();
+                analyser.fftSize = 1024;
+                analyser.smoothingTimeConstant = 0.15;
+                meterSource.connect(analyser);
+                const samples = new Float32Array(analyser.fftSize);
+                dictionarySpeechDetected = false;
+                dictionaryLastSpeechAt = 0;
+                const recordingStartedAt = Date.now();
+                dictionaryMeterInterval = setInterval(() => {
+                    if (!dictionaryMediaRecorder || dictionaryMediaRecorder.state !== 'recording') return;
+                    analyser.getFloatTimeDomainData(samples);
+                    let sumSquares = 0;
+                    for (let i = 0; i < samples.length; i++) sumSquares += samples[i] * samples[i];
+                    const rms = Math.sqrt(sumSquares / samples.length);
+                    const now = Date.now();
+                    // Require a short period of actual speech before silence can end recording.
+                    if (rms >= 0.018) {
+                        dictionarySpeechDetected = true;
+                        dictionaryLastSpeechAt = now;
+                    }
+                    if (dictionarySpeechDetected && now - dictionaryLastSpeechAt >= 1300) {
+                        status.textContent = '말이 끝난 것을 감지했어요. 음성을 분석합니다...';
+                        dictionaryMediaRecorder.stop();
+                    } else if (!dictionarySpeechDetected && now - recordingStartedAt >= 10000) {
+                        status.textContent = '음성이 감지되지 않았어요. 다시 시도해 주세요.';
+                        dictionaryVoiceCancelled = true;
+                        dictionaryMediaRecorder.stop();
+                    } else if (now - recordingStartedAt >= 15000) {
+                        status.textContent = '최대 녹음 시간에 도달했어요. 음성을 분석합니다...';
+                        dictionaryMediaRecorder.stop();
+                    }
+                }, 120);
             } catch (error) {
                 console.error('Microphone access error:', error);
                 stopDictionaryVoiceSearch();
