@@ -449,12 +449,8 @@
                     검색
                 </button>
             </div>
-            <div class="flex gap-1.5 items-center mb-3 shrink-0">
-                <select id="dictVoiceLanguage" aria-label="음성 검색 언어" class="min-w-0 flex-1 px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600">
-                    <option value="en-US">영어로 말하기</option>
-                    <option value="ko-KR">한국어로 말하기</option>
-                </select>
-                <button id="dictVoiceSearchBtn" type="button" onclick="toggleDictionaryVoiceSearch()" class="flex-1 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center justify-center gap-2">
+            <div class="flex mb-3 shrink-0">
+                <button id="dictVoiceSearchBtn" type="button" onclick="toggleDictionaryVoiceSearch()" class="w-full bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 text-rose-700 font-bold text-xs px-3 py-2.5 rounded-xl transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-microphone"></i><span>음성으로 검색</span>
                 </button>
             </div>
@@ -1771,90 +1767,199 @@
             }
         }
 
-        let dictionaryRecognition = null;
+        let dictionaryMediaRecorder = null;
+        let dictionaryAudioStream = null;
+        let dictionaryAudioChunks = [];
         let dictionaryVoiceActive = false;
+        let dictionaryVoiceCancelled = false;
+        let dictionaryVoiceTimer = null;
 
-        function stopDictionaryVoiceSearch() {
-            if (dictionaryRecognition) {
-                try { dictionaryRecognition.stop(); } catch (error) { /* already stopped */ }
-            }
+        function resetDictionaryVoiceButton() {
             dictionaryVoiceActive = false;
+            if (dictionaryVoiceTimer) clearTimeout(dictionaryVoiceTimer);
+            dictionaryVoiceTimer = null;
             const button = document.getElementById('dictVoiceSearchBtn');
-            const status = document.getElementById('dictVoiceStatus');
             if (button) {
+                button.disabled = false;
                 button.classList.remove('bg-rose-600', 'text-white', 'border-rose-600');
                 button.classList.add('bg-rose-50', 'text-rose-700', 'border-rose-200');
                 button.innerHTML = '<i class="fa-solid fa-microphone"></i><span>음성으로 검색</span>';
             }
-            if (status) status.classList.add('hidden');
         }
 
-        function toggleDictionaryVoiceSearch() {
+        function stopDictionaryVoiceSearch() {
+            dictionaryVoiceCancelled = true;
+            if (dictionaryMediaRecorder && dictionaryMediaRecorder.state !== 'inactive') {
+                try { dictionaryMediaRecorder.stop(); } catch (error) { /* already stopped */ }
+            }
+            if (dictionaryAudioStream) {
+                dictionaryAudioStream.getTracks().forEach(track => track.stop());
+                dictionaryAudioStream = null;
+            }
+            resetDictionaryVoiceButton();
+        }
+
+        function audioBufferToWavBase64(audioBuffer) {
+            const targetRate = 16000;
+            const source = audioBuffer.getChannelData(0);
+            const ratio = audioBuffer.sampleRate / targetRate;
+            const length = Math.max(1, Math.floor(source.length / ratio));
+            const pcm = new ArrayBuffer(44 + length * 2);
+            const view = new DataView(pcm);
+            const writeText = (offset, value) => {
+                for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
+            };
+            writeText(0, 'RIFF');
+            view.setUint32(4, 36 + length * 2, true);
+            writeText(8, 'WAVE');
+            writeText(12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, targetRate, true);
+            view.setUint32(28, targetRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeText(36, 'data');
+            view.setUint32(40, length * 2, true);
+            for (let i = 0; i < length; i++) {
+                const sample = source[Math.min(source.length - 1, Math.floor(i * ratio))];
+                const clipped = Math.max(-1, Math.min(1, sample));
+                view.setInt16(44 + i * 2, clipped < 0 ? clipped * 32768 : clipped * 32767, true);
+            }
+            let binary = '';
+            const bytes = new Uint8Array(pcm);
+            for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+                binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+            }
+            return btoa(binary);
+        }
+
+        async function processDictionaryVoiceAudio(blob) {
+            const status = document.getElementById('dictVoiceStatus');
+            try {
+                status.textContent = '음성을 분석하고 언어를 판별하는 중...';
+                status.classList.remove('hidden');
+                const apiKey = getStoredApiKey();
+                if (!apiKey || !apiKey.trim()) {
+                    openApiKeyModal();
+                    return;
+                }
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) throw new Error('이 브라우저는 오디오 처리를 지원하지 않습니다.');
+                const audioContext = new AudioContextClass();
+                try {
+                    const decoded = await audioContext.decodeAudioData(await blob.arrayBuffer());
+                    if (!decoded.length || decoded.duration < 0.15) throw new Error('음성이 너무 짧습니다. 다시 말해 주세요.');
+                    const audioBase64 = audioBufferToWavBase64(decoded);
+                    const payload = {
+                        contents: [{
+                            role: 'user',
+                            parts: [
+                                { text: 'Listen to the audio and identify whether the spoken search term is English or Korean. Transcribe only the intended word or short phrase, without explanations. If the speaker says an English word, return that English spelling. If the speaker says a Korean word, return the Korean spelling. Ignore filler words and surrounding noise. Return JSON only in this exact format: {"language":"en|ko","transcript":"recognized words","searchTerm":"the exact term to use for dictionary lookup"}. If unclear, make the best transcription guess.' },
+                                { inlineData: { mimeType: 'audio/wav', data: audioBase64 } }
+                            ]
+                        }],
+                        generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 120, temperature: 0.1 }
+                    };
+                    const response = await callGeminiInBackground(apiKey, payload);
+                    if (!response.ok) {
+                        const details = await response.text();
+                        throw new Error('Gemini 음성 분석 실패: ' + describeApiError(response.status, details));
+                    }
+                    const result = await response.json();
+                    const raw = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                    const match = raw.match(/\{[\s\S]*\}/);
+                    if (!match) throw new Error('음성에서 검색어를 추출하지 못했습니다.');
+                    const parsed = JSON.parse(match[0]);
+                    const searchTerm = String(parsed.searchTerm || parsed.transcript || '').trim();
+                    if (!searchTerm) throw new Error('음성에서 검색어를 찾지 못했습니다.');
+                    document.getElementById('dictQueryInput').value = searchTerm;
+                    const languageLabel = parsed.language === 'ko' ? '한국어' : '영어';
+                    status.textContent = languageLabel + ' 음성으로 인식: ' + searchTerm + ' · 사전을 검색합니다.';
+                    await lookupDictionaryWord();
+                } finally {
+                    await audioContext.close();
+                }
+            } catch (error) {
+                console.error('Dictionary voice search error:', error);
+                status.textContent = error?.message || '음성 분석 중 오류가 발생했습니다. 다시 시도해 주세요.';
+                status.classList.remove('hidden');
+            } finally {
+                resetDictionaryVoiceButton();
+            }
+        }
+
+        async function toggleDictionaryVoiceSearch() {
             if (dictionaryVoiceActive) {
-                stopDictionaryVoiceSearch();
+                if (dictionaryMediaRecorder && dictionaryMediaRecorder.state === 'recording') {
+                    dictionaryMediaRecorder.stop();
+                    return;
+                }
                 return;
             }
-
-            const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognitionAPI) {
-                alert('현재 브라우저에서는 음성 인식을 지원하지 않습니다. Chrome 또는 Safari 최신 버전을 이용해 주세요.');
+            if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+                alert('이 브라우저에서는 음성 녹음을 지원하지 않습니다. 최신 Chrome 또는 Safari를 이용해 주세요.');
                 return;
             }
-
-            stopDictionaryVoiceSearch();
-            const recognition = new SpeechRecognitionAPI();
-            dictionaryRecognition = recognition;
-            recognition.lang = document.getElementById('dictVoiceLanguage').value || 'en-US';
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-
             const button = document.getElementById('dictVoiceSearchBtn');
             const status = document.getElementById('dictVoiceStatus');
-            dictionaryVoiceActive = true;
-            button.classList.remove('bg-rose-50', 'text-rose-700', 'border-rose-200');
-            button.classList.add('bg-rose-600', 'text-white', 'border-rose-600');
-            button.innerHTML = '<i class="fa-solid fa-stop"></i><span>듣는 중… 중지</span>';
-            status.textContent = recognition.lang === 'ko-KR' ? '한국어로 검색할 단어를 말해 주세요.' : '영어 단어를 말해 주세요.';
-            status.classList.remove('hidden');
-
-            recognition.onresult = (event) => {
-                const transcript = String(event.results?.[0]?.[0]?.transcript || '').trim();
-                if (!transcript) return;
-                document.getElementById('dictQueryInput').value = transcript;
-                status.textContent = '인식 결과: ' + transcript + ' · 사전을 검색합니다.';
-                status.classList.remove('hidden');
-                dictionaryVoiceActive = false;
-                button.classList.remove('bg-rose-600', 'text-white', 'border-rose-600');
-                button.classList.add('bg-rose-50', 'text-rose-700', 'border-rose-200');
-                button.innerHTML = '<i class="fa-solid fa-microphone"></i><span>음성으로 검색</span>';
-                lookupDictionaryWord();
-            };
-            recognition.onerror = (event) => {
-                dictionaryVoiceActive = false;
-                button.classList.remove('bg-rose-600', 'text-white', 'border-rose-600');
-                button.classList.add('bg-rose-50', 'text-rose-700', 'border-rose-200');
-                button.innerHTML = '<i class="fa-solid fa-microphone"></i><span>음성으로 검색</span>';
-                status.textContent = event.error === 'not-allowed'
-                    ? '마이크 권한을 허용해 주세요.'
-                    : event.error === 'no-speech'
-                        ? '음성이 감지되지 않았어요. 다시 시도해 주세요.'
-                        : '음성을 인식하지 못했어요. 다시 시도해 주세요.';
-                status.classList.remove('hidden');
-            };
-            recognition.onend = () => {
-                if (!dictionaryVoiceActive) return;
-                dictionaryVoiceActive = false;
-                button.classList.remove('bg-rose-600', 'text-white', 'border-rose-600');
-                button.classList.add('bg-rose-50', 'text-rose-700', 'border-rose-200');
-                button.innerHTML = '<i class="fa-solid fa-microphone"></i><span>음성으로 검색</span>';
-            };
-
             try {
-                recognition.start();
+                const apiKey = getStoredApiKey();
+                if (!apiKey || !apiKey.trim()) {
+                    openApiKeyModal();
+                    return;
+                }
+                dictionaryAudioStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 }
+                });
+                dictionaryVoiceCancelled = false;
+                dictionaryAudioChunks = [];
+                const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                    ? 'audio/webm;codecs=opus'
+                    : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+                dictionaryMediaRecorder = mimeType
+                    ? new MediaRecorder(dictionaryAudioStream, { mimeType })
+                    : new MediaRecorder(dictionaryAudioStream);
+                dictionaryMediaRecorder.ondataavailable = event => {
+                    if (event.data && event.data.size > 0) dictionaryAudioChunks.push(event.data);
+                };
+                dictionaryMediaRecorder.onerror = () => {
+                    status.textContent = '음성을 녹음하지 못했습니다. 다시 시도해 주세요.';
+                    status.classList.remove('hidden');
+                    stopDictionaryVoiceSearch();
+                };
+                dictionaryMediaRecorder.onstop = async () => {
+                    const recordedBlob = new Blob(dictionaryAudioChunks, { type: dictionaryMediaRecorder?.mimeType || 'audio/webm' });
+                    dictionaryMediaRecorder = null;
+                    if (dictionaryAudioStream) {
+                        dictionaryAudioStream.getTracks().forEach(track => track.stop());
+                        dictionaryAudioStream = null;
+                    }
+                    if (dictionaryVoiceCancelled) return;
+                    if (recordedBlob.size > 0) await processDictionaryVoiceAudio(recordedBlob);
+                    else {
+                        status.textContent = '음성이 녹음되지 않았어요. 다시 시도해 주세요.';
+                        status.classList.remove('hidden');
+                        resetDictionaryVoiceButton();
+                    }
+                };
+                dictionaryVoiceActive = true;
+                button.classList.remove('bg-rose-50', 'text-rose-700', 'border-rose-200');
+                button.classList.add('bg-rose-600', 'text-white', 'border-rose-600');
+                button.innerHTML = '<i class="fa-solid fa-stop"></i><span>녹음 중… 누르면 분석</span>';
+                status.textContent = '영어 또는 한국어로 검색할 단어를 말한 뒤 버튼을 눌러 주세요. 최대 8초 녹음됩니다.';
+                status.classList.remove('hidden');
+                dictionaryMediaRecorder.start();
+                dictionaryVoiceTimer = setTimeout(() => {
+                    if (dictionaryMediaRecorder && dictionaryMediaRecorder.state === 'recording') dictionaryMediaRecorder.stop();
+                }, 8000);
             } catch (error) {
+                console.error('Microphone access error:', error);
                 stopDictionaryVoiceSearch();
-                status.textContent = '음성 검색을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+                status.textContent = error?.name === 'NotAllowedError'
+                    ? '마이크 권한을 허용해 주세요.'
+                    : '마이크를 시작할 수 없습니다. 브라우저 권한과 연결 상태를 확인해 주세요.';
                 status.classList.remove('hidden');
             }
         }
