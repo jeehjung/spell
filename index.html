@@ -144,7 +144,7 @@
             </div>
 
             <div class="w-full flex flex-col gap-3">
-                <button type="button" onclick="document.getElementById('cameraInput').click()" class="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-4 px-6 rounded-2xl transition shadow-lg shadow-indigo-100 inline-flex items-center justify-center gap-3 text-base">
+                <button type="button" onclick="openCameraCapture()" class="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-4 px-6 rounded-2xl transition shadow-lg shadow-indigo-100 inline-flex items-center justify-center gap-3 text-base">
                     <i class="fa-solid fa-camera text-xl"></i>
                     <span>지금 사진 촬영하기</span>
                 </button>
@@ -154,6 +154,23 @@
                 </button>
                 <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="handleImageUpload(event)">
                 <input type="file" id="imageInput" accept="image/*" class="hidden" onchange="handleImageUpload(event)">
+            </div>
+        </div>
+
+        <!-- In-page camera capture: avoids switching to the external camera app on mobile browsers. -->
+        <div id="cameraCaptureModal" class="hidden fixed inset-0 z-50 bg-slate-950/95 p-4 flex-col items-center justify-center">
+            <div class="w-full max-w-xl flex items-center justify-between text-white mb-3">
+                <h2 class="text-lg font-extrabold">사진 촬영</h2>
+                <button type="button" onclick="closeCameraCapture()" class="bg-white/15 hover:bg-white/25 text-white rounded-xl px-4 py-2 font-bold">닫기</button>
+            </div>
+            <div class="w-full max-w-xl bg-black rounded-2xl overflow-hidden">
+                <video id="cameraPreview" autoplay playsinline muted class="w-full max-h-[65vh] object-contain"></video>
+                <canvas id="cameraCaptureCanvas" class="hidden"></canvas>
+            </div>
+            <p id="cameraCaptureMessage" class="text-white/80 text-sm text-center mt-3">단어장이 화면에 잘 보이도록 맞춰 주세요.</p>
+            <div class="w-full max-w-xl flex gap-3 mt-4">
+                <button type="button" onclick="closeCameraCapture()" class="flex-1 bg-white/15 text-white font-bold py-3 rounded-xl">취소</button>
+                <button id="takeCameraPhotoBtn" type="button" onclick="captureCameraPhoto()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold py-3 rounded-xl"><i class="fa-solid fa-camera mr-2"></i>촬영 및 인식</button>
             </div>
         </div>
 
@@ -1858,48 +1875,137 @@
             closeDictionaryModal();
         }
 
-        async function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
+        let activeCameraStream = null;
 
+        async function openCameraCapture() {
             const apiKey = getStoredApiKey();
-            if (!apiKey || apiKey.trim() === "") {
+            if (!apiKey || !apiKey.trim()) {
                 openApiKeyModal();
-                event.target.value = '';
                 return;
             }
+            if (!navigator.mediaDevices?.getUserMedia) {
+                alert('이 브라우저에서는 웹 카메라를 사용할 수 없습니다. 사진 라이브러리에서 사진을 선택해 주세요.');
+                document.getElementById('imageInput').click();
+                return;
+            }
+
+            const modal = document.getElementById('cameraCaptureModal');
+            const video = document.getElementById('cameraPreview');
+            const message = document.getElementById('cameraCaptureMessage');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            message.textContent = '카메라 연결 중...';
+            try {
+                activeCameraStream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+                });
+                video.srcObject = activeCameraStream;
+                await video.play();
+                message.textContent = '단어장이 화면에 잘 보이도록 맞춰 주세요.';
+            } catch (err) {
+                console.error('Camera access error:', err);
+                closeCameraCapture();
+                const reason = err?.name === 'NotAllowedError'
+                    ? '카메라 권한이 허용되지 않았습니다. 브라우저 설정에서 카메라 권한을 허용해 주세요.'
+                    : err?.name === 'NotFoundError'
+                        ? '사용 가능한 카메라를 찾을 수 없습니다.'
+                        : '카메라를 실행하지 못했습니다. 브라우저의 카메라 권한과 연결 상태를 확인해 주세요.';
+                alert(reason + '\n사진 라이브러리에서 선택하는 방법도 사용할 수 있습니다.');
+            }
+        }
+
+        function closeCameraCapture() {
+            if (activeCameraStream) {
+                activeCameraStream.getTracks().forEach(track => track.stop());
+                activeCameraStream = null;
+            }
+            const video = document.getElementById('cameraPreview');
+            if (video) video.srcObject = null;
+            const modal = document.getElementById('cameraCaptureModal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        async function captureCameraPhoto() {
             if (imageRecognitionActive) return;
+            const video = document.getElementById('cameraPreview');
+            const canvas = document.getElementById('cameraCaptureCanvas');
+            const button = document.getElementById('takeCameraPhotoBtn');
+            if (!video || !video.videoWidth || !video.videoHeight) {
+                alert('카메라 화면이 준비되지 않았습니다. 잠시 후 다시 촬영해 주세요.');
+                return;
+            }
 
-            showLoading('사진을 인식하고 학습 모드를 준비하는 중...');
-
-            const reader = new FileReader();
-            reader.onload = async function(e) {
-                imageRecognitionActive = true;
-                try {
-                    const optimizedImage = await optimizeImageForBackground(e.target.result);
-                    const base64Data = optimizedImage.base64Data;
-                    const mimeType = optimizedImage.mimeType;
-                    const jobId = newGeminiJobId();
-                    await clearPendingImageJob();
-                    await savePendingImageJob({ base64Data, mimeType, jobId, savedAt: new Date().toISOString(), status: 'processing' });
-                    await extractWordsFromImage(base64Data, mimeType, apiKey, jobId);
-                } catch (err) {
-                    console.error("Extraction error:", err);
-                    const detail = String(err?.message || err || '알 수 없는 오류');
-                    alert('사진 인식 처리에 실패했습니다.\n\n오류 내용: ' + detail + '\n\n인터넷 연결과 Gemini API Key를 확인한 뒤 다시 시도해 주세요.');
+            button.disabled = true;
+            try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const context = canvas.getContext('2d');
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const blob = await new Promise((resolve, reject) => {
+                    canvas.toBlob(result => result ? resolve(result) : reject(new Error('사진을 생성하지 못했습니다.')), 'image/jpeg', 0.9);
+                });
+                closeCameraCapture();
+                const reader = new FileReader();
+                reader.onload = () => processImageDataUrl(reader.result);
+                reader.onerror = () => {
+                    alert('촬영한 사진을 읽지 못했습니다. 다시 촬영해 주세요.');
                     backToUpload();
-                } finally {
-                    imageRecognitionActive = false;
-                        await showPendingImageRecovery();
-                    event.target.value = '';
-                }
-            };
+                };
+                reader.readAsDataURL(blob);
+            } catch (err) {
+                console.error('Camera capture error:', err);
+                alert('사진 촬영에 실패했습니다. 다시 시도해 주세요.');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function handleImageUpload(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => processImageDataUrl(reader.result, event.target);
             reader.onerror = () => {
                 alert('이미지 파일을 읽지 못했습니다. 다시 선택해 주세요.');
                 backToUpload();
                 event.target.value = '';
             };
             reader.readAsDataURL(file);
+        }
+
+        async function processImageDataUrl(dataUrl, sourceInput = null) {
+            const apiKey = getStoredApiKey();
+            if (!apiKey || !apiKey.trim()) {
+                openApiKeyModal();
+                if (sourceInput) sourceInput.value = '';
+                return;
+            }
+            if (imageRecognitionActive) return;
+
+            imageRecognitionActive = true;
+            showLoading('사진을 인식하고 학습 모드를 준비하는 중...');
+            try {
+                const optimizedImage = await optimizeImageForBackground(dataUrl);
+                const base64Data = optimizedImage.base64Data;
+                const mimeType = optimizedImage.mimeType;
+                const jobId = newGeminiJobId();
+                await clearPendingImageJob();
+                await savePendingImageJob({ base64Data, mimeType, jobId, savedAt: new Date().toISOString(), status: 'processing' });
+                await extractWordsFromImage(base64Data, mimeType, apiKey, jobId);
+            } catch (err) {
+                console.error('Extraction error:', err);
+                const detail = String(err?.message || err || '알 수 없는 오류');
+                alert('사진 인식 처리에 실패했습니다.\n\n오류 내용: ' + detail + '\n\n인터넷 연결과 Gemini API Key를 확인한 뒤 다시 시도해 주세요.');
+                backToUpload();
+            } finally {
+                imageRecognitionActive = false;
+                await showPendingImageRecovery();
+                if (sourceInput) sourceInput.value = '';
+            }
         }
 
         async function extractBookTextFromImage(base64Data, mimeType, apiKey) {
