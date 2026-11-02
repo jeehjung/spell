@@ -479,7 +479,7 @@
             <div id="dictLoading" class="hidden py-6 text-center shrink-0">
                 <div class="w-7 h-7 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
                 <p class="text-xs text-slate-500 font-medium">사전 조회 중...</p>
-                <p id="dictionaryBackgroundHint" class="mt-2 text-[11px] text-amber-700 leading-relaxed">요청이 서버에 접수될 때까지 잠시 기다려 주세요. 접수된 뒤에는 브라우저를 닫아도 처리됩니다.</p>
+                <p id="dictionaryBackgroundHint" class="mt-2 text-[11px] text-amber-700 leading-relaxed">분석은 현재 브라우저에서 진행되며 Gemini API로 직접 요청합니다. 완료될 때까지 이 페이지를 유지해 주세요. 페이지를 닫거나 이동하면 진행 중인 요청이 중단됩니다.</p>
             </div>
 
             <!-- Result Display Area -->
@@ -592,7 +592,7 @@
                 </a>
             </p>
             <p id="geminiProxyPrivacyNotice" class="text-xs text-slate-500 mb-4 leading-relaxed">
-                앱은 API 키와 요청 내용을 Cloudflare를 거쳐 Gemini에 전달합니다. 요청 처리 중에만 사용하며 서버에 저장하지 않습니다.
+                Gemini 요청은 이 브라우저에서 Google Gemini API로 직접 전송됩니다. 입력한 API 키는 이 브라우저의 로컬 저장소에 저장되며, 앱 자체 서버나 Cloudflare 프록시는 사용하지 않습니다.
             </p>
 
             <div class="mb-5">
