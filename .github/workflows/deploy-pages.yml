@@ -39,6 +39,9 @@ jobs:
           rm -rf dist/.git dist/.github
           cp -a source-dev/. dist/dev/
           rm -rf dist/dev/.git dist/dev/.github
+          # Stamp the development page with the actual Pages build time (Korea time).
+          BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/dev/index.html
           touch dist/.nojekyll
 
       - name: Configure GitHub Pages
