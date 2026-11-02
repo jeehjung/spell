@@ -1946,7 +1946,10 @@
                         dictionaryAudioStream.getTracks().forEach(track => track.stop());
                         dictionaryAudioStream = null;
                     }
-                    if (dictionaryVoiceCancelled) return;
+                    if (dictionaryVoiceCancelled) {
+                        resetDictionaryVoiceButton();
+                        return;
+                    }
                     if (recordedBlob.size > 0) await processDictionaryVoiceAudio(recordedBlob);
                     else {
                         status.textContent = '음성이 녹음되지 않았어요. 다시 시도해 주세요.';
