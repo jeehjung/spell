@@ -42,7 +42,6 @@ jobs:
 
           # Stamp both Pages outputs with the actual build time in Korea time.
           BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
-          sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/index.html
           sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/dev/index.html
 
           # Fail the build rather than publish a visible placeholder.
