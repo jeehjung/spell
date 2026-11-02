@@ -669,10 +669,19 @@
         }
 
         // GitHub Pages-only mode: call Gemini directly from the browser.
-        // No Cloudflare API endpoint or server-side background job is used.
+        // Abort every in-flight Gemini request as soon as this document is being left.
+        const activeGeminiRequestControllers = new Set();
+        window.addEventListener('pagehide', () => {
+            activeGeminiRequestControllers.forEach(controller => {
+                if (!controller.signal.aborted) controller.abort('pagehide');
+            });
+            activeGeminiRequestControllers.clear();
+        });
+
         async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
             const controller = new AbortController();
-            const requestTimer = setTimeout(() => controller.abort(), 180000);
+            activeGeminiRequestControllers.add(controller);
+            const requestTimer = setTimeout(() => controller.abort('timeout'), 180000);
             try {
                 return await fetch(
                     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -680,16 +689,24 @@
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload),
-                        signal: controller.signal
+                        signal: controller.signal,
+                        cache: 'no-store'
                     }
                 );
             } catch (error) {
-                if (error?.name === 'AbortError') {
+                if (error?.name === 'AbortError' || controller.signal.aborted) {
+                    if (controller.signal.reason === 'pagehide') {
+                        const stopped = new Error('페이지를 벗어나 이미지 인식을 중단했습니다.');
+                        stopped.name = 'AbortError';
+                        stopped.code = 'PAGE_EXIT_ABORT';
+                        throw stopped;
+                    }
                     throw new Error('Gemini 요청이 3분 안에 완료되지 않아 중단했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.');
                 }
                 throw new Error('Gemini API에 직접 연결하지 못했습니다. 인터넷 연결과 API 키를 확인해 주세요. ' + (error?.message || ''));
             } finally {
                 clearTimeout(requestTimer);
+                activeGeminiRequestControllers.delete(controller);
             }
         }
 
