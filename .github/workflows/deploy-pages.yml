@@ -40,12 +40,12 @@ jobs:
           cp -a source-dev/. dist/dev/
           rm -rf dist/dev/.git dist/dev/.github
 
-          # Stamp both Pages outputs with the actual build time in Korea time.
+          # Stamp only the development page with the actual build time in Korea time.
           BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
           sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/dev/index.html
 
-          # Fail the build rather than publish a visible placeholder.
-          if grep -q '__LATEST_UPDATE__' dist/index.html dist/dev/index.html; then
+          # Fail the build rather than publish a visible placeholder on the development page.
+          if grep -q '__LATEST_UPDATE__' dist/dev/index.html; then
             echo "::error::Latest update placeholder was not replaced."
             exit 1
           fi
