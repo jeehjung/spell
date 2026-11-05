@@ -314,7 +314,14 @@
                         <input id="bookReadingSeekSlider" type="range" min="0" max="100" step="0.1" value="0" oninput="seekBookReading(this.value)" aria-label="읽기 위치 조절" title="읽기 위치 조절" class="absolute inset-0 w-full h-full appearance-none bg-transparent cursor-pointer z-20">
                     </div>
                 </div>
-                <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800 bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-[55vh] overflow-y-auto"></div>
+                <section class="mt-1 rounded-2xl border border-slate-200 bg-slate-50 p-4" aria-label="영어 원문과 한국어 해석">
+                    <div class="flex items-center gap-2 mb-2 text-slate-700 font-extrabold text-sm"><i class="fa-solid fa-book-open"></i><span>영어 원문</span></div>
+                    <div id="bookReadingText" class="whitespace-pre-wrap break-words leading-8 text-base text-slate-800"></div>
+                    <div class="border-t border-slate-200 my-4"></div>
+                    <div class="flex items-center gap-2 mb-2 text-indigo-800 font-extrabold text-sm"><i class="fa-solid fa-language"></i><span>한국어 해석</span></div>
+                    <p id="bookReadingTranslationStatus" class="text-xs text-slate-500 mb-2" aria-live="polite">영어 본문을 인식한 뒤 해석을 생성합니다.</p>
+                    <div id="bookReadingTranslation" class="whitespace-pre-wrap break-words leading-7 text-sm text-slate-700"></div>
+                </section>
             </div>
         </div>
 
@@ -831,6 +838,8 @@
         const PENDING_IMAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
         let imageRecognitionActive = false;
         let bookReadingText = '';
+        let bookReadingTranslation = '';
+        let bookReadingTranslationStatus = 'idle';
         let bookReadingRecognitionStatus = 'idle'; // idle | processing | ready | error
         let bookReadingRunId = 0;
 
@@ -1438,6 +1447,8 @@
             if (!selected) return;
             wordsData = Array.isArray(selected.words) ? [...selected.words] : [];
             bookReadingText = String(selected.bookText || '');
+            bookReadingTranslation = String(selected.bookTranslation || '');
+            bookReadingTranslationStatus = bookReadingTranslation ? 'ready' : (bookReadingText ? 'missing' : 'idle');
             currentDeckId = selected.id; currentDeckTitle = selected.title; currentIndex = 0;
             closeHistoryModal();
             if (mode === 'book') {
@@ -1449,6 +1460,7 @@
                 bookReadingChunkCharIndex = 0;
                 renderBookReadingScript();
                 updateBookReadingProgress();
+                updateBookReadingTranslationUI();
                 document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요. 재생 버튼을 누르면 처음부터 읽습니다.';
                 ['uploadView','loadingView','cardView','testView','testSummaryView','vocabularyQuizView','vocabularyQuizSummaryView','imageModeChoiceView'].forEach(id => document.getElementById(id).classList.add('hidden'));
                 document.getElementById('bookReadingView').classList.remove('hidden'); document.getElementById('bookReadingView').classList.add('flex');
@@ -2346,6 +2358,44 @@
             throw new Error(`본문 OCR 실패: ${message}`);
         }
 
+        function updateBookReadingTranslationUI() {
+            const status = document.getElementById('bookReadingTranslationStatus');
+            const content = document.getElementById('bookReadingTranslation');
+            if (content) {
+                const raw = String(bookReadingTranslation || '').trim();
+                let pairs = null;
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.every(item => item && typeof item.english === 'string' && typeof item.korean === 'string')) pairs = parsed;
+                } catch (e) { /* Older saved decks contain a plain translated paragraph. */ }
+                if (pairs) {
+                    const escapeHtml = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                    content.innerHTML = pairs.map(pair => '<div class="py-2.5 border-b border-indigo-100 last:border-b-0"><p class="text-slate-800 font-medium leading-7 whitespace-pre-wrap">' + escapeHtml(pair.english) + '</p><p class="mt-1 text-indigo-700 leading-7 whitespace-pre-wrap">' + escapeHtml(pair.korean) + '</p></div>').join('');
+                } else { content.textContent = raw; }
+            }
+            if (!status) return;
+            const messages = { idle: '영어 본문을 인식한 뒤 해석을 생성합니다.', loading: '문장별 한국어 해석을 생성하고 있어요...', ready: '각 영어 문장 바로 아래에 한국어 해석을 표시합니다.', error: '해석을 만들지 못했습니다. API 키와 연결 상태를 확인한 뒤 사진을 다시 인식해 주세요.', missing: '저장된 해석이 없습니다.' };
+            status.textContent = messages[bookReadingTranslationStatus] || messages.idle;
+        }
+
+        async function translateBookReadingText(text, apiKey) {
+            const sourceText = String(text || '');
+            const payload = {
+                contents: [{ role: 'user', parts: [{ text: '다음 영어 본문을 문장 단위로 한국어 번역해 주세요. 반드시 원문의 문장 순서와 문단 순서를 유지하고, 영어 문장 하나마다 대응하는 한국어 번역 하나를 만들어 주세요. 영어 원문은 철자와 문장부호를 포함해 가능한 한 그대로 보존하세요. 문장을 합치거나 나누지 말고, 요약하거나 생략하지 마세요. 결과는 다른 설명이나 마크다운 없이 아래 형식의 JSON 배열만 출력하세요: [{"english":"영어 원문 문장","korean":"해당 문장의 자연스러운 한국어 번역"}].\n\n' + sourceText }] }],
+                generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' }
+            };
+            const response = await callGeminiInBackground(apiKey, payload);
+            if (!response.ok) { const body = await response.text(); throw new Error(describeApiError(response.status, body)); }
+            const result = await response.json();
+            const translated = result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts.map(part => part.text || '').join('\n').trim();
+            if (!translated) throw new Error('Gemini가 문장별 번역을 반환하지 않았습니다.');
+            const cleaned = translated.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+            let pairs;
+            try { pairs = JSON.parse(cleaned); } catch (e) { throw new Error('문장별 번역 결과를 해석할 수 없습니다. 다시 시도해 주세요.'); }
+            if (!Array.isArray(pairs) || !pairs.length || pairs.some(item => !item || typeof item.english !== 'string' || typeof item.korean !== 'string')) throw new Error('문장별 번역 결과 형식이 올바르지 않습니다.');
+            return JSON.stringify(pairs);
+        }
+
         function splitBookTextIntoChunks(text) {
             // Keep the full passage as one speech unit for natural, uninterrupted reading.
             return String(text || '').trim() ? [String(text)] : [];
@@ -2367,8 +2417,7 @@
                 const active = bookReadingChunkCharIndex >= start && bookReadingChunkCharIndex < offset;
                 return `<span class="${active ? 'bg-amber-200 text-slate-900 rounded px-0.5 font-bold' : ''}">${safeText}</span>`;
             }).join('');
-            const active = container.querySelector('.bg-amber-200');
-            if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            // Keep the complete passage laid out naturally; do not create an inner scrolling area.
         }
         function updateBookReadingProgress() {
             const label = document.getElementById('bookReadingProgressLabel');
@@ -2662,6 +2711,9 @@
                         }
                         // Show the recognized vocabulary immediately. Full-passage OCR runs in the background.
                         bookReadingText = '';
+                        bookReadingTranslation = '';
+                        bookReadingTranslationStatus = 'loading';
+                        updateBookReadingTranslationUI();
                         bookReadingRecognitionStatus = 'processing';
                         updateBookReadingModeButton();
                         const recognizedDeckId = currentDeckId;
@@ -2680,8 +2732,21 @@
                                 bookReadingText = extractedBookText;
                                 bookReadingRecognitionStatus = extractedBookText ? 'ready' : 'error';
                                 if (!extractedBookText) {
+                                    bookReadingTranslationStatus = 'missing';
                                     console.warn('본문 전체 인식 결과가 비어 있습니다. 단어 공부 모드는 계속 이용할 수 있습니다.');
+                                } else {
+                                    bookReadingTranslationStatus = 'loading';
+                                    updateBookReadingTranslationUI();
+                                    try {
+                                        bookReadingTranslation = await translateBookReadingText(extractedBookText, apiKey);
+                                        bookReadingTranslationStatus = 'ready';
+                                    } catch (translationError) {
+                                        console.warn('영어 본문 번역에 실패했습니다.', translationError);
+                                        bookReadingTranslation = '';
+                                        bookReadingTranslationStatus = 'error';
+                                    }
                                 }
+                                updateBookReadingTranslationUI();
                             } catch (bookOcrError) {
                                 console.warn('본문 전체 인식에 실패했습니다. 단어 공부 모드는 이용할 수 있습니다.', bookOcrError);
                                 bookReadingText = '';
@@ -2695,6 +2760,7 @@
                                     const savedDeck = savedDecks.find(deck => deck.id === recognizedDeckId);
                                     if (savedDeck) {
                                         savedDeck.bookText = bookReadingText;
+                                        savedDeck.bookTranslation = bookReadingTranslation;
                                         saveDecksToStorage(savedDecks);
                                     }
                                 } catch (saveError) {
@@ -3486,6 +3552,7 @@
             bookView.classList.add('flex');
             renderBookReadingScript();
             updateBookReadingProgress();
+            updateBookReadingTranslationUI();
             document.getElementById('bookReadingStatus').textContent = '본문을 불러왔어요. 자동으로 읽기를 시작합니다.';
             // Simulate pressing the visible Play button when entering reading mode.
             const playButton = document.getElementById('bookReadingPlayPauseBtn');
@@ -3511,6 +3578,7 @@
                 bookReadingChunkCharIndex = 0;
                 renderBookReadingScript();
                 updateBookReadingProgress();
+                updateBookReadingTranslationUI();
                 document.getElementById('bookReadingStatus').textContent = bookReadingText ? '본문 추출 완료 · 자동으로 읽기를 시작합니다.' : '본문이 비어 있습니다. 다른 사진으로 다시 시도해 주세요.';
                 document.getElementById('bookReadingView').classList.remove('hidden');
                 document.getElementById('bookReadingView').classList.add('flex');
