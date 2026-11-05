@@ -2367,15 +2367,15 @@
 
         async function translateBookReadingText(text, apiKey) {
             const payload = {
-                contents: [{ role: 'user', parts: [{ text: '다음 영어 본문을 문장 순서와 문단 구성을 최대한 유지하여 자연스럽고 정확한 한국어로 번역해 주세요. 요약하거나 생략하지 말고 번역문만 출력하세요. 고유명사와 문맥상 중요한 표현은 적절히 옮겨 주세요.\\n\\n' + String(text || '') }] }],
+                contents: [{ role: 'user', parts: [{ text: '다음 영어 본문을 문장 순서와 문단 구성을 최대한 유지하여 자연스럽고 정확한 한국어로 번역해 주세요. 요약하거나 생략하지 말고 번역문만 출력하세요. 고유명사와 문맥상 중요한 표현은 적절히 옮겨 주세요.\n\n' + String(text || '') }] }],
                 generationConfig: { temperature: 0.2, maxOutputTokens: 8192 }
             };
             const response = await callGeminiInBackground(apiKey, payload);
             if (!response.ok) { const body = await response.text(); throw new Error(describeApiError(response.status, body)); }
             const result = await response.json();
-            const translated = result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts.map(part => part.text || '').join('\\n').trim();
+            const translated = result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts.map(part => part.text || '').join('\n').trim();
             if (!translated) throw new Error('Gemini가 번역문을 반환하지 않았습니다.');
-            return translated.replace(/^```(?:text)?\\s*/i, '').replace(/\\s*```$/, '').trim();
+            return translated.replace(/^```(?:text)?\s*/i, '').replace(/\s*```$/, '').trim();
         }
 
         function splitBookTextIntoChunks(text) {
