@@ -39,14 +39,18 @@ jobs:
           rm -rf dist/.git dist/.github
           cp -a source-dev/. dist/dev/
           rm -rf dist/dev/.git dist/dev/.github
-          # Stamp the development page with the actual Pages build time (Korea time).
+
+          # Stamp both production and development pages with the actual GitHub Pages build time (Korea time).
           BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/index.html
           sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/dev/index.html
-          # Fail the build rather than publish a visible placeholder on the development page.
-          if grep -q '__LATEST_UPDATE__' dist/dev/index.html; then
-            echo "::error::Latest update placeholder was not replaced in the development page."
+
+          # Fail the build rather than publish a visible placeholder on either page.
+          if grep -q '__LATEST_UPDATE__' dist/index.html dist/dev/index.html; then
+            echo "::error::Latest update placeholder was not replaced."
             exit 1
           fi
+
           touch dist/.nojekyll
 
       - name: Configure GitHub Pages
