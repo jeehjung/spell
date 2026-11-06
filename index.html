@@ -676,6 +676,31 @@
 
     <!-- Script Logic -->
     <script>
+        // The development build is served from the /dev/ path of the same site, so it shares
+        // localStorage/IndexedDB with production. Prefix every key in development so testing
+        // there can never read or overwrite production data. Production keys are unchanged.
+        const IS_DEV_BUILD = /\/dev(\/|\/index\.html)?$/.test(location.pathname);
+        const STORAGE_PREFIX = 'dev:';
+        const appStorage = {
+            _ownKeys() {
+                const keys = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key === null) continue;
+                    if (IS_DEV_BUILD ? key.startsWith(STORAGE_PREFIX) : !key.startsWith(STORAGE_PREFIX)) {
+                        keys.push(IS_DEV_BUILD ? key.slice(STORAGE_PREFIX.length) : key);
+                    }
+                }
+                return keys;
+            },
+            _k(key) { return IS_DEV_BUILD ? STORAGE_PREFIX + key : key; },
+            getItem(key) { return localStorage.getItem(this._k(key)); },
+            setItem(key, value) { localStorage.setItem(this._k(key), value); },
+            removeItem(key) { localStorage.removeItem(this._k(key)); },
+            get length() { return this._ownKeys().length; },
+            key(index) { return this._ownKeys()[index] ?? null; }
+        };
+
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
@@ -698,8 +723,8 @@
             return `오류 코드: ${status}\n원인: ${explanations[Number(status)] || 'Gemini API 요청을 처리하지 못했습니다.'}${detail ? `\n상세: ${detail}` : ''}\n조치: API 키와 인터넷 연결을 확인하고 잠시 후 다시 시도해 주세요.`;
         }
 
-        function newGeminiJobId() {
-            return crypto.randomUUID();
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         // GitHub Pages-only mode: call Gemini directly from the browser.
@@ -712,7 +737,7 @@
             activeGeminiRequestControllers.clear();
         });
 
-        async function callGeminiInBackground(apiKey, payload, jobId = newGeminiJobId()) {
+        async function callGemini(apiKey, payload) {
             const controller = new AbortController();
             activeGeminiRequestControllers.add(controller);
             const requestTimer = setTimeout(() => controller.abort('timeout'), 180000);
@@ -747,20 +772,20 @@
         const PENDING_DICTIONARY_JOB_KEY = 'spell_pending_dictionary_job_v1';
         function getPendingDictionaryJob() {
             try {
-                const job = JSON.parse(localStorage.getItem(PENDING_DICTIONARY_JOB_KEY) || 'null');
+                const job = JSON.parse(appStorage.getItem(PENDING_DICTIONARY_JOB_KEY) || 'null');
                 return job && Date.now() - job.savedAt < 7 * 24 * 60 * 60 * 1000 ? job : null;
             } catch {
                 return null;
             }
         }
         function savePendingDictionaryJob(job) {
-            localStorage.setItem(PENDING_DICTIONARY_JOB_KEY, JSON.stringify(job));
+            appStorage.setItem(PENDING_DICTIONARY_JOB_KEY, JSON.stringify(job));
         }
         function clearPendingDictionaryJob() {
-            localStorage.removeItem(PENDING_DICTIONARY_JOB_KEY);
+            appStorage.removeItem(PENDING_DICTIONARY_JOB_KEY);
         }
 
-        async function optimizeImageForBackground(dataUrl) {
+        async function optimizeImageForUpload(dataUrl) {
             const originalBase64 = String(dataUrl).split(',')[1] || '';
             const originalMimeType = String(dataUrl).split(';')[0].slice(5) || 'image/jpeg';
             if (originalBase64.length <= 700000) {
@@ -833,7 +858,7 @@
         // Preserve the uploaded image in IndexedDB so a canceled/reloaded page can retry recognition.
         initializeSpeechRateControls();
 
-        const PENDING_IMAGE_DB_NAME = 'spell_image_progress_db';
+        const PENDING_IMAGE_DB_NAME = (IS_DEV_BUILD ? 'dev_' : '') + 'spell_image_progress_db';
         const PENDING_IMAGE_STORE_NAME = 'jobs';
         const PENDING_IMAGE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
         let imageRecognitionActive = false;
@@ -882,7 +907,7 @@
             const key = normalizeWordCacheKey(word);
             if (!key) return null;
             try {
-                const cache = JSON.parse(localStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
+                const cache = JSON.parse(appStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
                 return cache[key] || null;
             } catch (e) {
                 return null;
@@ -893,7 +918,7 @@
             const key = normalizeWordCacheKey(word);
             if (!key || !data || typeof data !== 'object') return;
             try {
-                const cache = JSON.parse(localStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
+                const cache = JSON.parse(appStorage.getItem(WORD_INFO_CACHE_KEY) || '{}');
                 // Reinsert the key at the end so the oldest entries can be removed first.
                 delete cache[key];
                 cache[key] = {
@@ -911,7 +936,7 @@
                 while (keys.length > WORD_INFO_CACHE_LIMIT) {
                     delete cache[keys.shift()];
                 }
-                localStorage.setItem(WORD_INFO_CACHE_KEY, JSON.stringify(cache));
+                appStorage.setItem(WORD_INFO_CACHE_KEY, JSON.stringify(cache));
                 updateStorageUsageDisplay();
             } catch (e) {
                 // Cache is optional; app features should continue if storage is full or unavailable.
@@ -1232,13 +1257,12 @@
             document.getElementById('pendingImageRecovery').classList.add('hidden');
             showLoading('저장된 이미지로 인식을 다시 시도하는 중...');
             try {
-                const jobId = newGeminiJobId();
-                await savePendingImageJob({ ...job, jobId, status: 'processing' });
-                const optimizedImage = await optimizeImageForBackground('data:' + (job.mimeType || 'image/jpeg') + ';base64,' + job.base64Data);
+                await savePendingImageJob({ ...job, status: 'processing' });
+                const optimizedImage = await optimizeImageForUpload('data:' + (job.mimeType || 'image/jpeg') + ';base64,' + job.base64Data);
                 if (optimizedImage.base64Data !== job.base64Data || optimizedImage.mimeType !== job.mimeType) {
-                    await savePendingImageJob({ ...job, ...optimizedImage, jobId });
+                    await savePendingImageJob({ ...job, ...optimizedImage });
                 }
-                await extractWordsFromImage(optimizedImage.base64Data, optimizedImage.mimeType, apiKey, jobId);
+                await extractWordsFromImage(optimizedImage.base64Data, optimizedImage.mimeType, apiKey);
             } catch (err) {
                 console.error('이미지 인식 재시도 실패:', err);
                 backToUpload();
@@ -1261,28 +1285,27 @@
 
         function getSavedDecks() {
             try {
-                return JSON.parse(localStorage.getItem('saved_word_decks') || "[]");
+                return JSON.parse(appStorage.getItem('saved_word_decks') || "[]");
             } catch (e) {
                 return [];
             }
         }
 
         function saveDecksToStorage(decks) {
-            localStorage.setItem('saved_word_decks', JSON.stringify(decks));
+            appStorage.setItem('saved_word_decks', JSON.stringify(decks));
             updateStorageUsageDisplay();
         }
 
-        // Estimate all localStorage usage (including decks, word cache, and API key).
-        // localStorage is typically stored as UTF-16; exact quota accounting varies by browser.
+        // Estimate all appStorage usage (including decks, word cache, and API key).
+        // appStorage is typically stored as UTF-16; exact quota accounting varies by browser.
         function updateStorageUsageDisplay() {
             const label = document.getElementById('storageUsageLabel');
             if (!label) return;
 
             try {
                 let totalBytes = 0;
-                for (let i = 0; i < localStorage.length; i++) {
-                    const key = localStorage.key(i);
-                    const value = localStorage.getItem(key) || '';
+                for (const key of appStorage._ownKeys()) {
+                    const value = appStorage.getItem(key) || '';
                     totalBytes += (String(key).length + value.length) * 2;
                 }
 
@@ -1382,7 +1405,7 @@
 
             sortedDecks.forEach((deck) => {
                 const sampleWords = deck.words && deck.words.length > 0 
-                    ? deck.words.slice(0, 3).map(w => w.word).join(', ') + (deck.words.length > 3 ? ' 외' : '')
+                    ? escapeHtml(deck.words.slice(0, 3).map(w => w.word).join(', ')) + (deck.words.length > 3 ? ' 외' : '')
                     : '단어 없음';
 
                 const dateTimeDisplay = (deck.date && deck.time) ? `${deck.date} ${deck.time}` : (deck.date || '');
@@ -1396,11 +1419,11 @@
                             <button onclick="event.stopPropagation(); toggleFavoriteDeck(${deck.id})" class="text-base transition p-0.5 shrink-0 ${starColorClass}" title="즐겨찾기">
                                 <i class="fa-solid fa-star"></i>
                             </button>
-                            <h4 class="flex-1 min-w-0 font-bold text-sm text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${deck.title}</h4>
-                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${deck.count}개</span>
+                            <h4 class="flex-1 min-w-0 font-bold text-sm text-slate-800 whitespace-nowrap overflow-hidden text-ellipsis" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(deck.title)}</h4>
+                            <span class="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold shrink-0">${escapeHtml(deck.count)}개</span>
                         </div>
                         <p class="text-[11px] text-slate-500 mt-1 truncate font-medium"><span class="text-slate-400">포함 단어:</span> ${sampleWords}</p>
-                        <p class="text-[10px] text-slate-400 mt-0.5">${dateTimeDisplay}</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">${escapeHtml(dateTimeDisplay)}</p>
                     </div>
                     <div class="flex items-center justify-end gap-1 shrink-0 pt-2 border-t border-slate-200/70">
                         <button onclick="event.stopPropagation(); editDeckTitle(${deck.id})" class="w-9 h-9 bg-slate-200 hover:bg-indigo-100 text-slate-600 hover:text-indigo-600 rounded-xl flex items-center justify-center transition" title="이름 수정">
@@ -1522,7 +1545,7 @@
         const STUDY_NAME_STORAGE_KEY = 'spell_study_user_name';
 
         function getStudyName() {
-            return (localStorage.getItem(STUDY_NAME_STORAGE_KEY) || '').trim();
+            return (appStorage.getItem(STUDY_NAME_STORAGE_KEY) || '').trim();
         }
 
         function updateStudyNameUI() {
@@ -1538,7 +1561,7 @@
         function openNameModal() {
             const input = document.getElementById('studyNameInput');
             if (input) {
-                input.value = localStorage.getItem(STUDY_NAME_STORAGE_KEY) || '';
+                input.value = appStorage.getItem(STUDY_NAME_STORAGE_KEY) || '';
                 document.getElementById('nameModal').classList.remove('hidden');
                 input.focus();
             }
@@ -1552,16 +1575,16 @@
             const input = document.getElementById('studyNameInput');
             const name = String(input ? input.value : '').trim();
             if (name) {
-                localStorage.setItem(STUDY_NAME_STORAGE_KEY, name);
+                appStorage.setItem(STUDY_NAME_STORAGE_KEY, name);
             } else {
-                localStorage.removeItem(STUDY_NAME_STORAGE_KEY);
+                appStorage.removeItem(STUDY_NAME_STORAGE_KEY);
             }
             updateStudyNameUI();
             closeNameModal();
         }
 
         function getStoredApiKey() {
-            return localStorage.getItem('gemini_api_key') || HARDCODED_API_KEY || "";
+            return appStorage.getItem('gemini_api_key') || HARDCODED_API_KEY || "";
         }
 
         function updateApiKeyUI() {
@@ -1591,9 +1614,9 @@
         function saveApiKey() {
             const inputVal = document.getElementById('apiKeyInput').value.trim();
             if (inputVal) {
-                localStorage.setItem('gemini_api_key', inputVal);
+                appStorage.setItem('gemini_api_key', inputVal);
             } else {
-                localStorage.removeItem('gemini_api_key');
+                appStorage.removeItem('gemini_api_key');
             }
             updateApiKeyUI();
             updateStorageUsageDisplay();
@@ -1606,7 +1629,7 @@
 
         function getDictionaryHistory() {
             try {
-                const value = JSON.parse(localStorage.getItem(DICTIONARY_HISTORY_KEY) || '[]');
+                const value = JSON.parse(appStorage.getItem(DICTIONARY_HISTORY_KEY) || '[]');
                 return Array.isArray(value) ? value : [];
             } catch (e) {
                 return [];
@@ -1615,7 +1638,7 @@
 
         function getDictionaryFavorites() {
             try {
-                const value = JSON.parse(localStorage.getItem(DICTIONARY_FAVORITES_KEY) || '[]');
+                const value = JSON.parse(appStorage.getItem(DICTIONARY_FAVORITES_KEY) || '[]');
                 return Array.isArray(value) ? value : [];
             } catch (e) {
                 return [];
@@ -1624,7 +1647,7 @@
 
         function saveDictionaryFavorites(favorites) {
             try {
-                localStorage.setItem(DICTIONARY_FAVORITES_KEY, JSON.stringify(favorites));
+                appStorage.setItem(DICTIONARY_FAVORITES_KEY, JSON.stringify(favorites));
             } catch (e) {
                 console.warn('사전 즐겨찾기를 저장하지 못했습니다.', e);
             }
@@ -1667,7 +1690,7 @@
             const updated = [entry, ...history.filter(item => String(item.query || '').trim().toLocaleLowerCase() !== normalized)]
                 .slice(0, DICTIONARY_HISTORY_LIMIT);
             try {
-                localStorage.setItem(DICTIONARY_HISTORY_KEY, JSON.stringify(updated));
+                appStorage.setItem(DICTIONARY_HISTORY_KEY, JSON.stringify(updated));
             } catch (e) {
                 console.warn('사전 검색 기록을 저장하지 못했습니다.', e);
             }
@@ -1760,7 +1783,7 @@
         function clearDictionaryHistory() {
             if (!confirm('검색 기록을 삭제할까요? 즐겨찾기한 단어는 삭제되지 않습니다.')) return;
             // Favorites are stored separately and intentionally preserved.
-            localStorage.removeItem(DICTIONARY_HISTORY_KEY);
+            appStorage.removeItem(DICTIONARY_HISTORY_KEY);
             renderDictionaryHistory();
         }
 
@@ -1885,7 +1908,7 @@
                         }],
                         generationConfig: { responseMimeType: 'application/json', maxOutputTokens: 120, temperature: 0.1 }
                     };
-                    const response = await callGeminiInBackground(apiKey, payload);
+                    const response = await callGemini(apiKey, payload);
                     if (!response.ok) {
                         const details = await response.text();
                         throw new Error('Gemini 음성 분석 실패: ' + describeApiError(response.status, details));
@@ -2079,12 +2102,10 @@
             };
 
             try {
-                // Save the job ID before sending so this lookup can be resumed after reopening the browser.
+                // Remember the query so it can be refilled if the page is closed mid-lookup.
                 lastDictionaryRequestAt = Date.now();
-                const savedDictionaryJob = getPendingDictionaryJob();
-                const jobId = savedDictionaryJob?.query === query ? savedDictionaryJob.jobId : newGeminiJobId();
-                savePendingDictionaryJob({ jobId, query, savedAt: Date.now() });
-                const response = await callGeminiInBackground(apiKey, payload, jobId);
+                savePendingDictionaryJob({ query, savedAt: Date.now() });
+                const response = await callGemini(apiKey, payload);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
@@ -2256,13 +2277,12 @@
             imageRecognitionActive = true;
             showLoading('사진을 인식하고 학습 모드를 준비하는 중...');
             try {
-                const optimizedImage = await optimizeImageForBackground(dataUrl);
+                const optimizedImage = await optimizeImageForUpload(dataUrl);
                 const base64Data = optimizedImage.base64Data;
                 const mimeType = optimizedImage.mimeType;
-                const jobId = newGeminiJobId();
                 await clearPendingImageJob();
-                await savePendingImageJob({ base64Data, mimeType, jobId, savedAt: new Date().toISOString(), status: 'processing' });
-                await extractWordsFromImage(base64Data, mimeType, apiKey, jobId);
+                await savePendingImageJob({ base64Data, mimeType, savedAt: new Date().toISOString(), status: 'processing' });
+                await extractWordsFromImage(base64Data, mimeType, apiKey);
             } catch (err) {
                 console.error('Extraction error:', err);
                 const detail = String(err?.message || err || '알 수 없는 오류');
@@ -2294,7 +2314,7 @@
             let lastError = null;
             for (let attempt = 1; attempt <= 2; attempt++) {
                 try {
-                    const response = await callGeminiInBackground(apiKey, payload);
+                    const response = await callGemini(apiKey, payload);
                     if (!response.ok) {
                         const errText = await response.text();
                         const detail = describeApiError(response.status, errText);
@@ -2369,7 +2389,6 @@
                     if (Array.isArray(parsed) && parsed.every(item => item && typeof item.english === 'string' && typeof item.korean === 'string')) pairs = parsed;
                 } catch (e) { /* Older saved decks contain a plain translated paragraph. */ }
                 if (pairs) {
-                    const escapeHtml = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
                     content.innerHTML = pairs.map(pair => '<div class="py-2.5 border-b border-indigo-100 last:border-b-0"><p class="text-slate-800 font-medium leading-7 whitespace-pre-wrap">' + escapeHtml(pair.english) + '</p><p class="mt-1 text-indigo-700 leading-7 whitespace-pre-wrap">' + escapeHtml(pair.korean) + '</p></div>').join('');
                 } else { content.textContent = raw; }
             }
@@ -2384,7 +2403,7 @@
                 contents: [{ role: 'user', parts: [{ text: '다음 영어 본문을 문장 단위로 한국어 번역해 주세요. 반드시 원문의 문장 순서와 문단 순서를 유지하고, 영어 문장 하나마다 대응하는 한국어 번역 하나를 만들어 주세요. 영어 원문은 철자와 문장부호를 포함해 가능한 한 그대로 보존하세요. 문장을 합치거나 나누지 말고, 요약하거나 생략하지 마세요. 결과는 다른 설명이나 마크다운 없이 아래 형식의 JSON 배열만 출력하세요: [{"english":"영어 원문 문장","korean":"해당 문장의 자연스러운 한국어 번역"}].\n\n' + sourceText }] }],
                 generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: 'application/json' }
             };
-            const response = await callGeminiInBackground(apiKey, payload);
+            const response = await callGemini(apiKey, payload);
             if (!response.ok) { const body = await response.text(); throw new Error(describeApiError(response.status, body)); }
             const result = await response.json();
             const translated = result.candidates && result.candidates[0] && result.candidates[0].content && result.candidates[0].content.parts.map(part => part.text || '').join('\n').trim();
@@ -2636,7 +2655,7 @@
             backToUpload();
         }
 
-        async function extractWordsFromImage(base64Data, mimeType, apiKey, jobId = newGeminiJobId()) {
+        async function extractWordsFromImage(base64Data, mimeType, apiKey) {
             const systemPrompt = "You are an expert English teacher. Analyze the provided image of an English textbook or vocabulary list. Extract individual English vocabulary words AND meaningful multi-word expressions visible in the image, including idioms, phrasal verbs, and common phrases. Treat each expression as one vocabulary entry (for example, keep \"give up\" together rather than splitting it into \"give\" and \"up\", and keep \"once in a while\" as one expression). Prioritize expressions explicitly highlighted, listed, underlined, bolded, or clearly taught in the image; also identify clear idioms or phrases from the visible context when appropriate. Do not turn arbitrary parts of full sentences into entries, and do not duplicate the same expression as separate words. For each entry, provide word (the exact English word or complete expression), phonetic (accurate IPA pronunciation including ˈ before the primary-stressed syllable for multisyllabic words when applicable), stressPattern (syllables separated by hyphens with the stressed syllable in ALL CAPS, e.g. ob-SERVE or EN-or-mous; for one-syllable words use the word in uppercase), meaning (common Korean meanings, most common first, numbered on separate lines, EVERY meaning line must start with a Korean part-of-speech label in parentheses, e.g. '1. (명사) 관찰' or '2. (동사) 관찰하다'; use Korean labels such as 명사, 동사, 형용사, 부사, 전치사, 접속사, 대명사; never omit the label), exampleEn (one simple natural English example using the word or expression), and exampleKo (accurate Korean translation), synonyms (array of 2-5 common English synonyms), antonyms (array of 1-5 common English antonyms). Preserve meanings explicitly written in the image; when detail is missing, add only common learner-relevant meanings. Output strictly in valid JSON array format, or wrapped in ```json ``` code blocks.";
             const userQuery = "Extract the English vocabulary words and meaningful multi-word expressions from this image. Include idioms, phrasal verbs, and common phrases as single entries, not separate words. For each entry return word (or the complete expression), phonetic with the primary stress mark ˈ where applicable, stressPattern (hyphenated syllables with the stressed syllable in ALL CAPS), meaning, synonyms (array of common English words), antonyms (array of common English words), exampleEn, and exampleKo. Number common Korean meanings from most common to less common. Return JSON only.";
 
@@ -2659,7 +2678,7 @@
             };
 
             try {
-                const response = await callGeminiInBackground(apiKey, payload, jobId);
+                const response = await callGemini(apiKey, payload);
 
                 if (!response.ok) {
                     const errText = await response.text();
@@ -2814,21 +2833,23 @@
                         <div class="flex items-center gap-2">
                             <span class="shrink-0 inline-flex items-center justify-center min-w-7 h-6 px-1.5 rounded-md bg-slate-100 text-slate-600 text-xs font-bold">문제 ${idx + 1}</span>
                             <i class="fa-solid ${isCorrect ? 'fa-circle-check text-emerald-600' : 'fa-circle-xmark text-rose-600'} text-base"></i>
-                            <span class="font-extrabold text-sm text-slate-800">${item.word}</span>
-                            <span class="text-xs text-indigo-500 font-mono">${item.phonetic || ''}</span>
+                            <span class="font-extrabold text-sm text-slate-800">${escapeHtml(item.word)}</span>
+                            <span class="text-xs text-indigo-500 font-mono">${escapeHtml(item.phonetic || '')}</span>
                         </div>
-                        <button type="button" onclick="playSpecificAudio('${item.word.replace(/'/g, "\\'")}', '${item.exampleEn.replace(/'/g, "\\'")}')" class="w-6 h-6 bg-white hover:bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs shadow-sm border border-slate-200 transition">
+                        <button type="button" data-play-audio class="w-6 h-6 bg-white hover:bg-slate-100 text-slate-600 rounded-full flex items-center justify-center text-xs shadow-sm border border-slate-200 transition">
                             <i class="fa-solid fa-volume-high text-[10px]"></i>
                         </button>
                     </div>
-                    <p class="text-xs text-slate-600 font-semibold mb-1">뜻: ${item.meaning}</p>
+                    <p class="text-xs text-slate-600 font-semibold mb-1">뜻: ${escapeHtml(item.meaning)}</p>
                     <div class="text-[11px] space-y-0.5">
                         <p class="${isCorrect ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}">
-                            내 입력: ${userAns ? userAns : '(입력 없음)'}
+                            내 입력: ${userAns ? escapeHtml(userAns) : '(입력 없음)'}
                         </p>
-                        <p class="text-slate-500 font-medium">예문: ${item.exampleEn}</p>
+                        <p class="text-slate-500 font-medium">예문: ${escapeHtml(item.exampleEn || '')}</p>
                     </div>
                 `;
+                // Bind audio in JS so quotes in words or examples cannot break the button.
+                resultCard.querySelector('[data-play-audio]').addEventListener('click', () => playSpecificAudio(item.word, item.exampleEn || ''));
                 listContainer.appendChild(resultCard);
             });
 
@@ -3106,7 +3127,7 @@
                     systemInstruction: { parts: [{ text: systemPrompt }] },
                     generationConfig: { responseMimeType: "application/json" }
                 };
-                const response = await callGeminiInBackground(apiKey, relatedWordPayload);
+                const response = await callGemini(apiKey, relatedWordPayload);
                 if (!response.ok) {
                     const details = await response.text();
                     throw new Error(response.status === 429 ? OVERQUOTA_MSG : `AI 정보 조회 실패: ${details}`);
@@ -3201,7 +3222,7 @@
         }
 
         function getSpeechRate() {
-            const saved = Number(localStorage.getItem(SPEECH_RATE_KEY));
+            const saved = Number(appStorage.getItem(SPEECH_RATE_KEY));
             return Number.isFinite(saved) && saved >= 0.5 && saved <= 1.2
                 ? saved
                 : DEFAULT_SPEECH_RATE;
@@ -3210,7 +3231,7 @@
         function updateSpeechRate(value) {
             const rate = Math.min(1.2, Math.max(0.5, Number(value) || DEFAULT_SPEECH_RATE));
             try {
-                localStorage.setItem(SPEECH_RATE_KEY, String(rate));
+                appStorage.setItem(SPEECH_RATE_KEY, String(rate));
             } catch (e) {
                 console.warn('읽기 속도를 저장하지 못했습니다.', e);
             }
@@ -3413,7 +3434,7 @@
             };
 
             try {
-                const response = await callGeminiInBackground(apiKey, payload);
+                const response = await callGemini(apiKey, payload);
 
                 if (!response.ok) {
                     const errorDetails = await response.text();
