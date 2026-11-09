@@ -1,10 +1,12 @@
-name: Deploy Word Study (main + dev)
+name: Deploy Word Study production to GitHub Pages
+
+# GitHub Pages serves production (main) only.
+# Development (dev) is served only from Cloudflare Pages (see deploy-cloudflare.yml).
 
 on:
   push:
     branches:
       - main
-      - dev
   workflow_dispatch:
 
 permissions:
@@ -26,27 +28,17 @@ jobs:
           ref: main
           path: source-main
 
-      - name: Checkout dev (development)
-        uses: actions/checkout@v4
-        with:
-          ref: dev
-          path: source-dev
-
       - name: Prepare Pages artifact
         run: |
-          mkdir -p dist dist/dev
-          cp -a source-main/. dist/
-          rm -rf dist/.git dist/.github
-          cp -a source-dev/. dist/dev/
-          rm -rf dist/dev/.git dist/dev/.github
+          mkdir -p dist
+          cp source-main/index.html dist/
 
-          # Stamp both production and development pages with the actual GitHub Pages build time (Korea time).
+          # Stamp the page with the actual GitHub Pages build time (Korea time).
           BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
           sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/index.html
-          sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/dev/index.html
 
-          # Fail the build rather than publish a visible placeholder on either page.
-          if grep -q '__LATEST_UPDATE__' dist/index.html dist/dev/index.html; then
+          # Fail the build rather than publish a visible placeholder.
+          if grep -q '__LATEST_UPDATE__' dist/index.html; then
             echo "::error::Latest update placeholder was not replaced."
             exit 1
           fi
