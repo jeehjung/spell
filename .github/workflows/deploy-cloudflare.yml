@@ -1,0 +1,58 @@
+name: Deploy Word Study to Cloudflare Pages
+
+# main -> production (Cloudflare Pages project "wordstudy")
+# dev  -> development (Cloudflare Pages project "wordstudy-dev")
+on:
+  push:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pick Cloudflare Pages project
+        id: target
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "project=wordstudy" >> "$GITHUB_OUTPUT"
+          elif [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            echo "project=wordstudy-dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Only main and dev are deployed."
+            exit 1
+          fi
+
+      - name: Prepare site
+        run: |
+          mkdir -p dist
+          cp index.html dist/
+
+          # Stamp the page with the actual build time (Korea time).
+          BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
+          sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/index.html
+
+          # Fail the build rather than publish a visible placeholder.
+          if grep -q '__LATEST_UPDATE__' dist/index.html; then
+            echo "::error::Latest update placeholder was not replaced."
+            exit 1
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ steps.target.outputs.project }} --branch=${{ github.ref_name }} --commit-dirty=true
