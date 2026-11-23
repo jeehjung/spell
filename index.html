@@ -711,6 +711,54 @@
             key(index) { return this._ownKeys()[index] ?? null; }
         };
 
+        // ---- Automatic update ----
+        // The deploy workflow replaces __BUILD_VERSION__ with a unique id and publishes the same id in
+        // version.json. When version.json reports a different id, a new version has been deployed, so the
+        // page reloads right away. The version goes in the URL so cached HTML (GitHub Pages caches it for
+        // up to 10 minutes) cannot bring back the old page.
+        const APP_BUILD_VERSION = '__BUILD_VERSION__';
+        const UPDATE_CHECK_INTERVAL_MS = 60 * 1000;
+        const UPDATE_RELOAD_GUARD_KEY = 'spell_update_reload_target';
+
+        async function checkForAppUpdate() {
+            if (APP_BUILD_VERSION.startsWith('__')) return; // Local file or undeployed copy.
+            try {
+                const response = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+                if (!response.ok) return;
+                const latest = String((await response.json()).version || '');
+                if (!latest || latest === APP_BUILD_VERSION) return;
+
+                // Never reload twice toward the same version (e.g. if the server still serves old HTML).
+                let lastTarget = null;
+                try { lastTarget = sessionStorage.getItem(UPDATE_RELOAD_GUARD_KEY); } catch (e) {}
+                if (lastTarget === latest) return;
+                try { sessionStorage.setItem(UPDATE_RELOAD_GUARD_KEY, latest); } catch (e) {}
+
+                const url = new URL(location.href);
+                url.searchParams.set('v', latest);
+                location.replace(url.toString());
+            } catch (e) {
+                // Offline or blocked: try again on the next check.
+            }
+        }
+
+        (function startAppUpdateChecks() {
+            // Remove the ?v= marker left by an update reload so it does not linger in the address bar.
+            try {
+                const url = new URL(location.href);
+                if (url.searchParams.has('v')) {
+                    url.searchParams.delete('v');
+                    history.replaceState(history.state, '', url.toString());
+                }
+            } catch (e) {}
+            setInterval(checkForAppUpdate, UPDATE_CHECK_INTERVAL_MS);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') checkForAppUpdate();
+            });
+            window.addEventListener('online', checkForAppUpdate);
+            setTimeout(checkForAppUpdate, 3000);
+        })();
+
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
