@@ -44,9 +44,14 @@ jobs:
           BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
           sed -i "s|__LATEST_UPDATE__|${BUILD_TIME}|g" dist/index.html
 
+          # Unique id for this deploy. The page compares it with version.json to reload itself after an update.
+          BUILD_VERSION="${GITHUB_SHA::7}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          sed -i "s|__BUILD_VERSION__|${BUILD_VERSION}|g" dist/index.html
+          printf '{"version":"%s"}\n' "${BUILD_VERSION}" > dist/version.json
+
           # Fail the build rather than publish a visible placeholder.
-          if grep -q '__LATEST_UPDATE__' dist/index.html; then
-            echo "::error::Latest update placeholder was not replaced."
+          if grep -qE '__LATEST_UPDATE__|__BUILD_VERSION__' dist/index.html; then
+            echo "::error::Build placeholders were not replaced."
             exit 1
           fi
 
