@@ -93,6 +93,19 @@
             50% { transform: scale(1.05); }
             100% { transform: scale(1); }
         }
+        /* PWA install banner (same approach as the Sokcho Church app) */
+        .pwa-bar, .pwa-bar *, .pwa-help, .pwa-help * { box-sizing: border-box; }
+        .pwa-bar { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 36rem; margin: 0 auto 4px; padding: 8px 8px 8px 12px; background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 16px; color: #1e293b; font-size: 15px; line-height: 1.35; box-shadow: 0 1px 3px rgba(79,70,229,.12); }
+        .pwa-bar img { width: 30px; height: 30px; border-radius: 8px; flex: 0 0 auto; }
+        .pwa-txt { flex: 1 1 auto; min-width: 0; font-weight: 700; }
+        .pwa-btn { flex: 0 0 auto; min-height: 0 !important; border: 0; border-radius: 999px; background: #4f46e5; color: #fff; font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; cursor: pointer; white-space: nowrap; }
+        .pwa-x { flex: 0 0 auto; min-height: 0 !important; border: 0; background: none; color: #64748b; font-size: 16px; width: 32px; height: 32px; cursor: pointer; }
+        .pwa-help { position: fixed; inset: 0; z-index: 100; background: rgba(15,23,42,.45); display: flex; align-items: flex-end; justify-content: center; padding: 16px; }
+        .pwa-help-card { background: #fff; border-radius: 20px; padding: 20px 20px 16px; width: 100%; max-width: 420px; font-size: 16px; line-height: 1.6; }
+        .pwa-help-card ol { margin: 10px 0 12px; padding-left: 20px; list-style: decimal; }
+        .pwa-help-card .pwa-note { margin: 0 0 14px; padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; font-size: 14px; color: #92400e; }
+        .pwa-help-card .pwa-btn { width: 100%; padding: 11px; font-size: 16px; }
+        .pwa-share { display: inline-block; border: 1.5px solid currentColor; border-radius: 5px; padding: 0 4px; font-size: 12px; color: #4f46e5; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen text-slate-800 flex flex-col items-center justify-between p-4 sm:p-6">
@@ -774,6 +787,108 @@
                 navigator.serviceWorker.register('sw.js').catch(error => console.warn('서비스 워커 등록 실패', error));
             });
         }
+
+        // PWA install banner: people who have not installed the app see an "install" strip at the top.
+        // Same behaviour as the Sokcho Church app: install button on Android Chrome, step-by-step help on
+        // iPhone and Samsung Internet, "open in browser" inside KakaoTalk and other in-app browsers.
+        // ?pwa=reset clears the "installed / hidden" memory, ?pwa=debug also shows detection details.
+        (function setUpInstallBanner() {
+            const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+            const get = key => { try { return localStorage.getItem(key); } catch (e) { return null; } };
+            const set = (key, value) => { try { localStorage.setItem(key, value); } catch (e) {} };
+            const query = new URLSearchParams(location.search).get('pwa');
+            if (query === 'reset' || query === 'debug') {
+                try { localStorage.removeItem('pwaInstalled'); localStorage.removeItem('pwaBannerHide'); } catch (e) {}
+            }
+
+            const ua = navigator.userAgent;
+            const touch = (navigator.maxTouchPoints || 0) > 0 || matchMedia('(pointer: coarse)').matches;
+            const isIOS = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touch);
+            // Samsung Internet "desktop mode" and similar still count as Android when the screen is touch.
+            const isAndroid = /Android/.test(ua) || (!isIOS && touch && /Linux|SamsungBrowser|X11/.test(ua));
+            const isKakao = /KAKAOTALK/i.test(ua);
+            const inApp = isKakao || /NAVER\(inapp|Instagram|FBAN|FBAV|Line\//i.test(ua);
+            const isMobile = isIOS || isAndroid;
+            const isSamsung = /SamsungBrowser/i.test(ua);
+
+            if (query === 'debug') {
+                const box = document.createElement('pre');
+                box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:999;background:#1e1b4b;color:#fff;font-size:11px;padding:10px;border-radius:10px;white-space:pre-wrap;word-break:break-all;margin:0';
+                const update = () => { box.textContent = JSON.stringify({ ver: APP_BUILD_VERSION, standalone, touch, isIOS, isAndroid, inApp, prompt: !!window.__pwaPrompt, bar: !!document.querySelector('.pwa-bar'), ua }, null, 1); };
+                const attach = () => { document.body.appendChild(box); update(); setInterval(update, 1000); };
+                if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
+            }
+
+            if (standalone) { set('pwaInstalled', String(Date.now())); return; }
+            // Trust the "installed" record for 30 days only, in case the app was removed.
+            const installedAt = get('pwaInstalled');
+            if (installedAt && Date.now() - (+installedAt || 0) < 30 * 864e5) return;
+            if (Date.now() < (+get('pwaBannerHide') || 0)) return;
+
+            let deferred = null;
+            let bar = null;
+            const close = days => { set('pwaBannerHide', String(Date.now() + days * 864e5)); if (bar) bar.remove(); bar = null; };
+            const show = (text, buttonLabel, onClick) => {
+                if (bar) bar.remove();
+                bar = document.createElement('div');
+                bar.className = 'pwa-bar';
+                bar.innerHTML = `<img src="icons/icon-192.png" alt="" width="30" height="30"><span class="pwa-txt">${text}</span>` +
+                    (buttonLabel ? `<button type="button" class="pwa-btn">${buttonLabel}</button>` : '') +
+                    '<button type="button" class="pwa-x" aria-label="닫기">✕</button>';
+                bar.querySelector('.pwa-x').onclick = () => close(7);
+                if (buttonLabel) bar.querySelector('.pwa-btn').onclick = onClick;
+                document.body.insertBefore(bar, document.body.firstChild);
+            };
+            const helpSteps = () => {
+                if (isIOS) return ['아래(또는 위) 메뉴의 <b>공유 버튼</b> <span class="pwa-share" aria-hidden="true">⬆︎</span> 을 누르세요', '<b>홈 화면에 추가</b>를 누르세요', '오른쪽 위 <b>추가</b>를 누르면 끝!'];
+                if (isSamsung) return ['주소창 오른쪽의 <b>설치 아이콘</b> <span class="pwa-share" aria-hidden="true">⬇︎</span> 을 누르세요', '<b>설치</b>를 누르면 끝!', '아이콘이 없으면 아래 <b>메뉴(≡ 또는 ⋮)</b> → <b>현재 페이지 추가</b> → <b>홈 화면</b>'];
+                return ['오른쪽 위 <b>메뉴(⋮)</b>를 누르세요', '<b>앱 설치</b> 또는 <b>홈 화면에 추가</b>를 누르세요', '<b>설치</b>를 누르면 끝!'];
+            };
+            const showHelp = () => {
+                const dialog = document.createElement('div');
+                dialog.className = 'pwa-help';
+                // On iPhone the installed app keeps its own storage, separate from Safari.
+                const note = isIOS ? '<p class="pwa-note">아이폰은 설치한 앱에 단어장이 따로 저장돼요. 설치 전에 맨 아래 <b>백업 내보내기</b>를 하고, 앱에서 <b>백업 가져오기</b>와 API 키 입력을 해 주세요.</p>' : '';
+                dialog.innerHTML = `<div class="pwa-help-card" role="dialog" aria-label="홈 화면에 앱 추가하는 방법"><b>홈 화면에 Word Study 앱 추가</b>
+                    <ol>${helpSteps().map(step => `<li>${step}</li>`).join('')}</ol>${note}
+                    <button type="button" class="pwa-btn">확인</button></div>`;
+                dialog.onclick = e => { if (e.target === dialog || e.target.classList.contains('pwa-btn')) dialog.remove(); };
+                document.body.appendChild(dialog);
+            };
+
+            window.addEventListener('beforeinstallprompt', e => {
+                e.preventDefault();
+                deferred = e;
+                window.__pwaPrompt = true;
+                show('Word Study 앱 설치하기', '설치', async () => {
+                    if (!deferred) return;
+                    deferred.prompt();
+                    const result = await deferred.userChoice.catch(() => null);
+                    deferred = null;
+                    if (result && result.outcome === 'accepted') { set('pwaInstalled', String(Date.now())); if (bar) bar.remove(); }
+                    else close(3);
+                });
+            });
+            window.addEventListener('appinstalled', () => { set('pwaInstalled', String(Date.now())); if (bar) bar.remove(); });
+
+            const start = () => {
+                if (deferred || bar) return;
+                if (inApp && isMobile) {
+                    if (isKakao) {
+                        show('앱 설치는 브라우저에서', '브라우저로 열기', () => { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); });
+                    } else {
+                        show(`앱 설치는 ${isIOS ? 'Safari' : 'Chrome'}에서 열어주세요`, '', null);
+                    }
+                } else if (isMobile) {
+                    // iPhone, and Android browsers that never send beforeinstallprompt (e.g. Samsung Internet): show how.
+                    show('Word Study 앱 설치하기', '방법 보기', showHelp);
+                }
+                // Desktop Chrome etc.: the banner appears only when beforeinstallprompt arrives.
+            };
+            const wait = isAndroid && !inApp ? 2500 : 800; // On Android, give the install signal a moment first.
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(start, wait));
+            else setTimeout(start, wait);
+        })();
 
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
