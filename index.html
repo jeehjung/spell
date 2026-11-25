@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iun's Word Study - Enhanced</title>
+    <!-- PWA: install to the home screen and open offline -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#4f46e5">
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Word Study">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -758,6 +767,13 @@
             window.addEventListener('online', checkForAppUpdate);
             setTimeout(checkForAppUpdate, 3000);
         })();
+
+        // PWA: register the service worker on deployed builds only (it needs the stamped build version).
+        if ('serviceWorker' in navigator && !APP_BUILD_VERSION.startsWith('__')) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(error => console.warn('서비스 워커 등록 실패', error));
+            });
+        }
 
         const HARDCODED_API_KEY = ""; 
         const GEMINI_MODEL = "gemini-3.5-flash-lite";

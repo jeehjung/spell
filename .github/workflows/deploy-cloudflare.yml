@@ -38,7 +38,8 @@ jobs:
       - name: Prepare site
         run: |
           mkdir -p dist
-          cp index.html dist/
+          cp index.html manifest.webmanifest sw.js dist/
+          cp -r icons dist/icons
 
           # Stamp the page with the actual build time (Korea time).
           BUILD_TIME="$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M KST')"
@@ -46,11 +47,11 @@ jobs:
 
           # Unique id for this deploy. The page compares it with version.json to reload itself after an update.
           BUILD_VERSION="${GITHUB_SHA::7}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          sed -i "s|__BUILD_VERSION__|${BUILD_VERSION}|g" dist/index.html
+          sed -i "s|__BUILD_VERSION__|${BUILD_VERSION}|g" dist/index.html dist/sw.js
           printf '{"version":"%s"}\n' "${BUILD_VERSION}" > dist/version.json
 
           # Fail the build rather than publish a visible placeholder.
-          if grep -qE '__LATEST_UPDATE__|__BUILD_VERSION__' dist/index.html; then
+          if grep -qE '__LATEST_UPDATE__|__BUILD_VERSION__' dist/index.html dist/sw.js; then
             echo "::error::Build placeholders were not replaced."
             exit 1
           fi
