@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iun's Word Study - Enhanced</title>
+    <title>Word Study</title>
     <!-- PWA: install to the home screen and open offline -->
     <link rel="manifest" href="manifest.webmanifest">
     <meta name="theme-color" content="#4f46e5">
@@ -113,7 +113,7 @@
     <!-- Header Section -->
     <header class="w-full max-w-xl text-center py-4 relative z-10">
         <button type="button" onclick="window.location.reload()" title="페이지 새로고침" aria-label="페이지 새로고침" class="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-md mb-2 transition cursor-pointer">
-            <i class="fa-solid fa-graduation-cap mr-2"></i> <span id="studyTitleName">Iun's Word Study</span>
+            <i class="fa-solid fa-graduation-cap mr-2"></i> <span id="studyTitleName">Word Study</span>
         </button>
         <p class="text-xs sm:text-sm text-slate-400 mt-2 italic font-medium">"An intelligent heart acquires knowledge, and the ear of the wise seeks knowledge." – Proverbs 18:15</p>
 
@@ -1852,7 +1852,8 @@
             const buttonText = document.getElementById('studyNameBtnText');
             if (title) title.textContent = displayTitle;
             if (buttonText) buttonText.textContent = name ? '이름 입력됨' : '이름 입력 필요';
-            document.title = displayTitle;
+            // The window/app title stays "Word Study"; the personalized name is shown only in the header.
+            document.title = 'Word Study';
         }
 
         function openNameModal() {
