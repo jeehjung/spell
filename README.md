@@ -31,5 +31,10 @@
 
 ## Gemini API
 
-- 사용자가 앱에 직접 입력한 Gemini API 키로, 브라우저에서 Google Gemini API를 바로 호출합니다.
+- **기본 키**: 개인 키가 없으면 Cloudflare Pages Function `functions/api/gemini.js`(`/api/gemini`)가 Pages 프로젝트 비밀값 `GEMINI_API_KEY`로 Gemini를 대신 호출합니다. 키는 브라우저로 내려가지 않습니다.
+  - Cloudflare 운영·개발 화면은 각자 자기 서버(`wordstudy`, `wordstudy-dev`)를 사용합니다.
+  - GitHub Pages 운영 화면은 서버가 없어서 Cloudflare 운영 서버(`https://wordstudy-6cw.pages.dev/api/gemini`)를 빌려 씁니다.
+  - 서버는 자기 주소와 `https://jeehjung.github.io`에서 온 요청만 받습니다.
+  - 비밀값 `GEMINI_API_KEY`는 Cloudflare 대시보드의 Pages 프로젝트 `wordstudy`, `wordstudy-dev`에 각각 등록합니다(등록·변경 후 다시 배포해야 적용).
+- **개인 키(선택)**: 앱의 API Key 버튼에서 입력하면 이 브라우저에만 저장되고, 요청은 브라우저에서 Google Gemini API로 직접 보냅니다.
 - 사용 모델은 `index.html`의 `GEMINI_MODEL` 상수에서 바꿀 수 있습니다.
