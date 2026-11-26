@@ -613,15 +613,15 @@
             <div class="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mb-4 text-xl shadow-inner">
                 <i class="fa-solid fa-key"></i>
             </div>
-            <h3 class="text-lg font-extrabold text-slate-900 mb-1">Google Gemini API Key 설정</h3>
+            <h3 class="text-lg font-extrabold text-slate-900 mb-1">개인 Gemini API Key (선택)</h3>
             <p class="text-xs text-slate-500 mb-4 leading-relaxed">
-                Gemini AI 단어 분석 및 자동 채우기 기능을 사용하려면 API 키가 필요합니다.<br>
+                키를 넣지 않아도 기본 키로 사진 인식·사전·자동 채우기를 쓸 수 있어요. 기본 키 사용량이 다 찼을 때나 내 키를 쓰고 싶을 때만 입력하세요. 비워 두고 저장하면 기본 키로 돌아갑니다.<br>
                 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" onclick="if (window.AndroidBridge) { window.AndroidBridge.openExternalUrl(this.href); return false; }" class="text-indigo-600 hover:text-indigo-800 font-bold underline inline-flex items-center gap-1 mt-1">
                     <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i> 여기서 무료 API Key 발급받기
                 </a>
             </p>
             <p id="geminiProxyPrivacyNotice" class="text-xs text-slate-500 mb-4 leading-relaxed">
-                Gemini 요청은 이 브라우저에서 Google Gemini API로 직접 전송됩니다. 입력한 API 키는 이 브라우저의 로컬 저장소에 저장되며, 앱 자체 서버나 Cloudflare 프록시는 사용하지 않습니다.
+                개인 키를 넣으면 요청이 이 브라우저에서 Google Gemini API로 직접 전송되고, 키는 이 브라우저에만 저장됩니다. 기본 키를 쓸 때는 요청이 앱의 Cloudflare 서버를 거쳐 Gemini로 전달되며, 서버는 내용을 저장하지 않습니다.
             </p>
 
             <div class="mb-5">
@@ -891,6 +891,21 @@
         })();
 
         const HARDCODED_API_KEY = ""; 
+
+        // ---- Default Gemini key ----
+        // Without a personal key, requests go through the Cloudflare Pages Function /api/gemini, which
+        // adds the owner's key kept as a Cloudflare secret. GitHub Pages has no server, so the GitHub Pages
+        // copy borrows the Cloudflare production server. A personal key, when entered, is used directly.
+        const DEFAULT_KEY_SERVER = (() => {
+            const host = location.hostname;
+            if (host.endsWith('github.io')) return 'https://wordstudy-6cw.pages.dev';
+            if (host.endsWith('.pages.dev')) return '';
+            return null; // Local copy: no default key.
+        })();
+
+        function hasGeminiAccess() {
+            return !!getStoredApiKey().trim() || DEFAULT_KEY_SERVER !== null;
+        }
         const GEMINI_MODEL = "gemini-3.5-flash-lite";
 
         function describeApiError(status, body = '') {
@@ -930,19 +945,41 @@
             const controller = new AbortController();
             activeGeminiRequestControllers.add(controller);
             const requestTimer = setTimeout(() => controller.abort('timeout'), 180000);
+            const personalKey = String(apiKey || '').trim();
             try {
+                if (!personalKey) {
+                    if (DEFAULT_KEY_SERVER === null) throw new Error('Gemini API 키를 입력해 주세요.');
+                    const response = await fetch(`${DEFAULT_KEY_SERVER}/api/gemini`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: GEMINI_MODEL, payload }),
+                        signal: controller.signal,
+                        cache: 'no-store'
+                    });
+                    if (response.status === 429) {
+                        throw new Error('기본 Gemini 키의 사용량이 잠시 다 찼어요. 잠시 후 다시 시도하거나, 위의 API Key 버튼에서 개인 키를 입력하면 바로 쓸 수 있어요.');
+                    }
+                    if (response.status === 503 || response.status === 403) {
+                        let code = '';
+                        try { code = (await response.clone().json())?.error?.code || ''; } catch (e) {}
+                        if (code === 'NO_DEFAULT_KEY') throw new Error('기본 Gemini 키가 아직 준비되지 않았어요. API Key 버튼에서 개인 키를 입력해 주세요.');
+                        if (code === 'FORBIDDEN_ORIGIN') throw new Error('이 주소에서는 기본 Gemini 키를 쓸 수 없어요. API Key 버튼에서 개인 키를 입력해 주세요.');
+                    }
+                    return response;
+                }
                 return await fetch(
                     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,
                     {
                         method: 'POST',
                         // Send the key in a header (Google's recommended method) so it never appears in the request URL.
-                        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': personalKey },
                         body: JSON.stringify(payload),
                         signal: controller.signal,
                         cache: 'no-store'
                     }
                 );
             } catch (error) {
+                if (error?.message?.includes('기본 Gemini 키') || error?.message === 'Gemini API 키를 입력해 주세요.') throw error;
                 if (error?.name === 'AbortError' || controller.signal.aborted) {
                     if (controller.signal.reason === 'pagehide') {
                         const stopped = new Error('페이지를 벗어나 이미지 인식을 중단했습니다.');
@@ -952,7 +989,7 @@
                     }
                     throw new Error('Gemini 요청이 3분 안에 완료되지 않아 중단했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.');
                 }
-                throw new Error('Gemini API에 직접 연결하지 못했습니다. 인터넷 연결과 API 키를 확인해 주세요. ' + (error?.message || ''));
+                throw new Error((personalKey ? 'Gemini API에 연결하지 못했습니다. 인터넷 연결과 API 키를 확인해 주세요. ' : 'Gemini 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요. ') + (error?.message || ''));
             } finally {
                 clearTimeout(requestTimer);
                 activeGeminiRequestControllers.delete(controller);
@@ -1437,7 +1474,7 @@
             }
 
             const apiKey = getStoredApiKey();
-            if (!apiKey || !apiKey.trim()) {
+            if (!hasGeminiAccess()) {
                 await showPendingImageRecovery();
                 openApiKeyModal();
                 return;
@@ -1889,7 +1926,10 @@
             const key = getStoredApiKey();
             const btnText = document.getElementById('apiKeyBtnText');
             if (key && key.trim() !== "") {
-                btnText.innerText = "API Key 설정됨";
+                btnText.innerText = "개인 API Key 사용";
+                btnText.parentElement.classList.remove('border-amber-300', 'bg-amber-50');
+            } else if (DEFAULT_KEY_SERVER !== null) {
+                btnText.innerText = "기본 키 사용 중";
                 btnText.parentElement.classList.remove('border-amber-300', 'bg-amber-50');
             } else {
                 btnText.innerText = "API Key 입력 필요";
@@ -2185,7 +2225,7 @@
                 status.textContent = '음성을 분석하고 언어를 판별하는 중...';
                 status.classList.remove('hidden');
                 const apiKey = getStoredApiKey();
-                if (!apiKey || !apiKey.trim()) {
+                if (!hasGeminiAccess()) {
                     openApiKeyModal();
                     return;
                 }
@@ -2250,7 +2290,7 @@
             const status = document.getElementById('dictVoiceStatus');
             try {
                 const apiKey = getStoredApiKey();
-                if (!apiKey || !apiKey.trim()) {
+                if (!hasGeminiAccess()) {
                     openApiKeyModal();
                     return;
                 }
@@ -2360,7 +2400,7 @@
             if (!query || dictionaryRequestInFlight) return;
 
             const apiKey = getStoredApiKey();
-            if (!apiKey) {
+            if (!hasGeminiAccess()) {
                 openApiKeyModal();
                 return;
             }
@@ -2465,7 +2505,7 @@
 
         async function openCameraCapture() {
             const apiKey = getStoredApiKey();
-            if (!apiKey || !apiKey.trim()) {
+            if (!hasGeminiAccess()) {
                 openApiKeyModal();
                 return;
             }
@@ -2565,7 +2605,7 @@
 
         async function processImageDataUrl(dataUrl, sourceInput = null) {
             const apiKey = getStoredApiKey();
-            if (!apiKey || !apiKey.trim()) {
+            if (!hasGeminiAccess()) {
                 openApiKeyModal();
                 if (sourceInput) sourceInput.value = '';
                 return;
@@ -3460,8 +3500,8 @@
             }
 
             const apiKey = getStoredApiKey();
-            if (!apiKey) {
-                newItem.meaning = `${sourceWord}의 ${relationLabel}로 추가됨 · API Key를 설정하면 AI가 정보를 채웁니다.`;
+            if (!hasGeminiAccess()) {
+                newItem.meaning = `${sourceWord}의 ${relationLabel}로 추가됨 · API Key를 입력하면 AI가 정보를 채웁니다.`;
                 saveDeckToHistory(currentDeckTitle, wordsData, currentDeckId);
                 if (wordsData[currentIndex] === newItem) renderCard();
                 openApiKeyModal();
@@ -3764,7 +3804,7 @@
             }
 
             const apiKey = getStoredApiKey();
-            if (!apiKey) {
+            if (!hasGeminiAccess()) {
                 openApiKeyModal();
                 return;
             }
