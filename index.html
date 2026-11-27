@@ -125,6 +125,8 @@
             #appBody > footer { grid-column: 2; grid-row: 4; justify-self: center; }
             #cardView { max-width: 1000px; }
             #uploadView { max-width: 680px; }
+            /* Start every right-hand screen at the same height as the top of the left sidebar. */
+            #appMain > * { margin-top: 0; margin-bottom: 0; }
             .flash-card-box { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2rem; align-items: start;
                 grid-template-areas: "example word" "example meaning" "example synant" "nav nav"; }
             .flash-card-box .card-example { grid-area: example; margin-bottom: 0; }
