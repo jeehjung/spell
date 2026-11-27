@@ -38,7 +38,7 @@ jobs:
       - name: Prepare site
         run: |
           mkdir -p dist
-          cp index.html manifest.webmanifest sw.js dist/
+          cp index.html manifest.webmanifest manifest-tablet.webmanifest sw.js dist/
           cp -r icons dist/icons
 
           # Stamp the page with the actual build time (Korea time).
@@ -52,9 +52,9 @@ jobs:
 
           # Development install shows as "Word Study 개발" on the home screen.
           if [ "${GITHUB_REF_NAME}" = "dev" ]; then
-            sed -i 's|"name": "Word Study"|"name": "Word Study 개발"|; s|"short_name": "Word Study"|"short_name": "Word Study 개발"|' dist/manifest.webmanifest
+            sed -i 's|"name": "Word Study"|"name": "Word Study 개발"|; s|"short_name": "Word Study"|"short_name": "Word Study 개발"|' dist/manifest.webmanifest dist/manifest-tablet.webmanifest
             sed -i 's|<meta name="apple-mobile-web-app-title" content="Word Study">|<meta name="apple-mobile-web-app-title" content="Word Study 개발">|; s|<title>Word Study</title>|<title>Word Study 개발</title>|' dist/index.html
-            grep -q '"name": "Word Study 개발"' dist/manifest.webmanifest || { echo "::error::Development app name was not applied."; exit 1; }
+            grep -q '"name": "Word Study 개발"' dist/manifest-tablet.webmanifest && grep -q '"name": "Word Study 개발"' dist/manifest.webmanifest || { echo "::error::Development app name was not applied."; exit 1; }
           fi
 
           # Fail the build rather than publish a visible placeholder.

@@ -1,7 +1,7 @@
 // Service worker for Iun's Word Study (PWA).
 // The deploy workflow replaces __BUILD_VERSION__, so every deploy installs a fresh worker and cache.
 const CACHE_NAME = 'spell-__BUILD_VERSION__';
-const APP_SHELL = ['./', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const APP_SHELL = ['./', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 // Third-party files the page needs to render (styles, icons, fonts), kept for offline use.
 const CDN_HOSTS = ['cdn.tailwindcss.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -41,8 +41,9 @@ self.addEventListener('fetch', event => {
     }
 
     if (url.origin === self.location.origin) {
-        // version.json drives the auto-reload check and must never come from a cache.
-        if (url.pathname.endsWith('/version.json') || url.pathname.endsWith('/sw.js')) return;
+        // version.json drives the auto-reload check and the manifests decide how the app is installed:
+        // always fetch these from the network.
+        if (url.pathname.endsWith('/version.json') || url.pathname.endsWith('/sw.js') || url.pathname.endsWith('.webmanifest')) return;
         event.respondWith(
             caches.match(request).then(cached => {
                 const network = fetch(request).then(response => {

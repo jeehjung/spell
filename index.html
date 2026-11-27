@@ -5,7 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Study</title>
     <!-- PWA: install to the home screen and open offline -->
-    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="manifest" id="appManifest" href="manifest.webmanifest">
+    <script>
+        // Tablets install the app in landscape, phones in portrait. A web app manifest has only one
+        // orientation, so tablets (shorter screen side >= 600px, touch) get the landscape manifest.
+        (function () {
+            try {
+                var tablet = Math.min(screen.width, screen.height) >= 600 && matchMedia('(pointer: coarse)').matches;
+                if (tablet) document.getElementById('appManifest').setAttribute('href', 'manifest-tablet.webmanifest');
+            } catch (e) {}
+        })();
+    </script>
     <meta name="theme-color" content="#4f46e5">
     <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -858,7 +868,7 @@
             if (query === 'debug') {
                 const box = document.createElement('pre');
                 box.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:999;background:#1e1b4b;color:#fff;font-size:11px;padding:10px;border-radius:10px;white-space:pre-wrap;word-break:break-all;margin:0';
-                const update = () => { box.textContent = JSON.stringify({ ver: APP_BUILD_VERSION, standalone, touch, isIOS, isAndroid, inApp, prompt: !!window.__pwaPrompt, bar: !!document.querySelector('.pwa-bar'), ua }, null, 1); };
+                const update = () => { box.textContent = JSON.stringify({ ver: APP_BUILD_VERSION, standalone, touch, isIOS, isAndroid, inApp, prompt: !!window.__pwaPrompt, bar: !!document.querySelector('.pwa-bar'), manifest: document.getElementById('appManifest')?.getAttribute('href'), orientation: screen.orientation?.type, screen: screen.width + 'x' + screen.height, ua }, null, 1); };
                 const attach = () => { document.body.appendChild(box); update(); setInterval(update, 1000); };
                 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach); else attach();
             }
