@@ -122,36 +122,53 @@
         .pwa-help-card .pwa-note { margin: 0 0 14px; padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; font-size: 14px; color: #92400e; }
         .pwa-help-card .pwa-btn { width: 100%; padding: 11px; font-size: 16px; }
         .pwa-share { display: inline-block; border: 1.5px solid currentColor; border-radius: 5px; padding: 0 4px; font-size: 12px; color: #4f46e5; }
-        /* Tablet in landscape (Galaxy Tab etc.): buttons in a left sidebar, study content on the right.
+        /* Tablet in landscape (Galaxy Tab etc.): one fixed screen with no page scrolling.
+           Left: a white sidebar box (title, key, name, dictionary, saved decks, reading speed, and the
+           storage/backup footer at its bottom). Right: the study screen. Both boxes start and end at the
+           same height. If a screen is taller than the space (e.g. reading mode), only the right side scrolls.
            Phones and portrait screens keep the original single-column layout. */
         @media (orientation: landscape) and (min-width: 900px) and (pointer: coarse) {
-            #appBody { display: grid; grid-template-columns: 250px minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; column-gap: 24px; align-items: start; justify-content: stretch; padding: 16px 24px; }
+            html, #appBody { height: 100%; overflow: hidden; }
+            #appBody { height: 100dvh; display: grid; grid-template-columns: 250px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+                column-gap: 24px; align-items: stretch; justify-content: stretch; padding: 20px 24px; }
             #appBody > .pwa-bar { grid-column: 1 / -1; grid-row: 1; max-width: none; margin: 0 0 12px; }
-            #appHeader { grid-column: 1; grid-row: 2 / span 3; position: sticky; top: 16px; width: 100%; max-width: none; margin: 0; padding: 18px 16px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; text-align: left;
-                background: rgba(255,255,255,.75); border: 1px solid #e0e7ff; border-radius: 24px; box-shadow: 0 4px 16px rgba(79,70,229,.08); }
-            #appHeader > button { margin: 0; justify-content: center; padding-top: 10px; padding-bottom: 10px; font-size: 15px; }
-            #appHeader .app-quote { margin: 0; font-size: 12px; line-height: 1.5; text-align: center; }
-            #appHeader .app-utility { margin: 0; flex-direction: column; align-items: stretch; gap: 8px; }
-            #appHeader .app-utility > button { justify-content: flex-start; font-size: 14px; padding: 11px 14px; border-radius: 14px; }
+            /* One white box behind the header and the footer of the left column. */
+            #appBody::before { content: ''; grid-column: 1; grid-row: 2 / 4; background: rgba(255,255,255,.85); border: 1px solid #e0e7ff; border-radius: 24px; box-shadow: 0 4px 16px rgba(79,70,229,.08); }
+            #appHeader { grid-column: 1; grid-row: 2; position: relative; z-index: 1; width: 100%; max-width: none; margin: 0; padding: 16px 14px 8px; display: flex; flex-direction: column; align-items: stretch; gap: 10px; text-align: left; overflow: hidden; }
+            #appHeader > button { margin: 0; justify-content: center; padding-top: 9px; padding-bottom: 9px; font-size: 15px; }
+            #appHeader .app-quote { margin: 0; font-size: 11px; line-height: 1.45; text-align: center; }
+            #appHeader .app-utility { margin: 0; flex-direction: column; align-items: stretch; gap: 7px; }
+            #appHeader .app-utility > button { justify-content: flex-start; font-size: 14px; padding: 9px 14px; border-radius: 14px; }
             #appHeader .app-utility > button i { width: 18px; text-align: center; }
-            #appHeader .app-speed { margin: 0; width: 100%; max-width: none; padding: 10px 12px; }
-            #appHeader .app-speed > div { flex-wrap: wrap; row-gap: 6px; }
+            #appHeader .app-speed { margin: 0; width: 100%; max-width: none; padding: 8px 12px; }
+            #appHeader .app-speed > div { flex-wrap: wrap; row-gap: 4px; }
             #appHeader .app-speed input[type=range] { flex: 1 1 100%; order: 3; }
-            #appMain { grid-column: 2; grid-row: 2 / span 2; width: 100%; max-width: none; justify-content: flex-start; padding-top: 0; min-height: calc(100vh - 140px); }
-            #appBody > footer { grid-column: 2; grid-row: 4; justify-self: center; }
-            #cardView { max-width: 1000px; }
-            #uploadView { max-width: 680px; }
-            /* Start every right-hand screen at the same height as the top of the left sidebar. */
+            #appBody > footer { grid-column: 1; grid-row: 3; position: relative; z-index: 1; width: 100%; max-width: none; margin: 0; padding: 10px 12px 14px; border-top: 1px solid #e0e7ff; font-size: 10.5px; line-height: 1.4; }
+            #appBody > footer .my-2 { margin-top: 6px; margin-bottom: 6px; }
+            #appMain { grid-column: 2; grid-row: 2 / 4; width: 100%; max-width: none; height: 100%; min-height: 0; justify-content: flex-start; padding: 0; overflow-y: auto; overscroll-behavior: contain; }
             #appMain > * { margin-top: 0; margin-bottom: 0; }
-            .flash-card-box { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2rem; align-items: start;
+            /* Home: the upload box fills the right side, same height as the left box. */
+            #uploadView:not(.hidden) { flex: 1 1 auto; max-width: none; display: flex; flex-direction: column; justify-content: center; }
+            #uploadView > *:not(:first-child) { width: 100%; max-width: 560px; margin-left: auto; margin-right: auto; }
+            /* Word card: two columns, compact enough to fit one screen. */
+            #cardView { max-width: 1000px; gap: 10px; }
+            #cardView > div:first-child { gap: 8px; }
+            #cardView > div:first-child .grid > button { padding-top: 9px; padding-bottom: 9px; }
+            .flash-card-box { padding: 20px 24px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2rem; align-items: start;
                 grid-template-areas: "example word" "example meaning" "example synant" "nav nav"; }
             .flash-card-box .card-example { grid-area: example; margin-bottom: 0; }
-            .flash-card-box .card-example #cardExampleEn { font-size: 1.35rem; line-height: 1.5; }
-            .flash-card-box .card-example #cardExampleKo { font-size: 1.1rem; }
-            .flash-card-box .card-word { grid-area: word; }
-            .flash-card-box .card-meaning { grid-area: meaning; }
-            .flash-card-box #cardSynAnt { grid-area: synant; }
-            .flash-card-box .card-nav { grid-area: nav; margin-top: 1rem; }
+            .flash-card-box .card-example #cardExampleEn { font-size: 1.3rem; line-height: 1.5; }
+            .flash-card-box .card-example #cardExampleKo { font-size: 1.05rem; }
+            .flash-card-box .card-word { grid-area: word; margin-bottom: 8px; }
+            .flash-card-box #cardWord { font-size: 2.6rem; line-height: 1.1; }
+            .flash-card-box #cardWordCursive { font-size: 2.2rem !important; }
+            .flash-card-box .card-meaning { grid-area: meaning; padding-top: 10px; margin-bottom: 6px; }
+            .flash-card-box #cardSynAnt { grid-area: synant; padding-top: 8px; margin-bottom: 0; }
+            .flash-card-box .card-nav { grid-area: nav; margin-top: 12px; }
+        }
+        /* Installed app (no browser bar): give the top edge more breathing room. */
+        @media (display-mode: standalone) {
+            #appBody { padding-top: 32px; }
         }
     </style>
 </head>
