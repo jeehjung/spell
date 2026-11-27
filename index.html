@@ -106,17 +106,25 @@
         .pwa-help-card .pwa-note { margin: 0 0 14px; padding: 10px 12px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; font-size: 14px; color: #92400e; }
         .pwa-help-card .pwa-btn { width: 100%; padding: 11px; font-size: 16px; }
         .pwa-share { display: inline-block; border: 1.5px solid currentColor; border-radius: 5px; padding: 0 4px; font-size: 12px; color: #4f46e5; }
-        /* Tablet held sideways (Galaxy Tab etc.). Android 16+ ignores the manifest's portrait lock on large
-           screens, so use the extra width instead: one-line header, and a two-column word card
-           (sentence on the left, word and meaning on the right) so a card fits without scrolling. */
-        @media (orientation: landscape) and (min-width: 900px) and (max-height: 1000px) and (pointer: coarse) {
-            #appHeader { max-width: 1100px; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; padding-top: 4px; padding-bottom: 8px; }
-            #appHeader .app-quote { display: none; }
-            #appHeader > button { margin-bottom: 0; }
-            #appHeader .app-utility { margin-top: 0; }
-            #appHeader .app-speed { margin: 0; width: 280px; padding-top: 8px; padding-bottom: 8px; }
-            #appMain { max-width: 1100px; }
-            #cardView { max-width: 1100px; }
+        /* Tablet in landscape (Galaxy Tab etc.): buttons in a left sidebar, study content on the right.
+           Phones and portrait screens keep the original single-column layout. */
+        @media (orientation: landscape) and (min-width: 900px) and (pointer: coarse) {
+            #appBody { display: grid; grid-template-columns: 250px minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; column-gap: 24px; align-items: start; justify-content: stretch; padding: 16px 24px; }
+            #appBody > .pwa-bar { grid-column: 1 / -1; grid-row: 1; max-width: none; margin: 0 0 12px; }
+            #appHeader { grid-column: 1; grid-row: 2 / span 3; position: sticky; top: 16px; width: 100%; max-width: none; margin: 0; padding: 18px 16px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; text-align: left;
+                background: rgba(255,255,255,.75); border: 1px solid #e0e7ff; border-radius: 24px; box-shadow: 0 4px 16px rgba(79,70,229,.08); }
+            #appHeader > button { margin: 0; justify-content: center; padding-top: 10px; padding-bottom: 10px; font-size: 15px; }
+            #appHeader .app-quote { margin: 0; font-size: 12px; line-height: 1.5; text-align: center; }
+            #appHeader .app-utility { margin: 0; flex-direction: column; align-items: stretch; gap: 8px; }
+            #appHeader .app-utility > button { justify-content: flex-start; font-size: 14px; padding: 11px 14px; border-radius: 14px; }
+            #appHeader .app-utility > button i { width: 18px; text-align: center; }
+            #appHeader .app-speed { margin: 0; width: 100%; max-width: none; padding: 10px 12px; }
+            #appHeader .app-speed > div { flex-wrap: wrap; row-gap: 6px; }
+            #appHeader .app-speed input[type=range] { flex: 1 1 100%; order: 3; }
+            #appMain { grid-column: 2; grid-row: 2 / span 2; width: 100%; max-width: none; justify-content: flex-start; padding-top: 0; min-height: calc(100vh - 140px); }
+            #appBody > footer { grid-column: 2; grid-row: 4; justify-self: center; }
+            #cardView { max-width: 1000px; }
+            #uploadView { max-width: 680px; }
             .flash-card-box { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 2rem; align-items: start;
                 grid-template-areas: "example word" "example meaning" "example synant" "nav nav"; }
             .flash-card-box .card-example { grid-area: example; margin-bottom: 0; }
@@ -129,7 +137,7 @@
         }
     </style>
 </head>
-<body class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen text-slate-800 flex flex-col items-center justify-between p-4 sm:p-6">
+<body id="appBody" class="bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 min-h-screen text-slate-800 flex flex-col items-center justify-between p-4 sm:p-6">
 
     <!-- Header Section -->
     <header id="appHeader" class="w-full max-w-xl text-center py-4 relative z-10">
@@ -804,6 +812,15 @@
             });
             window.addEventListener('online', checkForAppUpdate);
             setTimeout(checkForAppUpdate, 3000);
+        })();
+
+        // Tablets open in landscape. The manifest says "natural" (landscape on Galaxy Tab, portrait on
+        // phones); in the installed app we also ask for landscape explicitly on tablet-size screens.
+        (function preferLandscapeOnTablet() {
+            const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+            const tablet = Math.min(screen.width, screen.height) >= 600;
+            if (!standalone || !tablet || !screen.orientation?.lock) return;
+            screen.orientation.lock('landscape').catch(() => { /* Not allowed here: keep the current orientation. */ });
         })();
 
         // PWA: register the service worker on deployed builds only (it needs the stamped build version).
