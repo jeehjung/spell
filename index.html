@@ -5,15 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Word Study</title>
     <!-- PWA: install to the home screen and open offline -->
-    <link rel="manifest" id="appManifest" href="manifest.webmanifest">
     <script>
         // Tablets install the app in landscape, phones in portrait. A web app manifest has only one
-        // orientation, so tablets (shorter screen side >= 600px, touch) get the landscape manifest.
+        // orientation, so the manifest link is written here once, already pointing at the right file.
+        // (Samsung Internet keeps the first manifest it sees, so the link must not be changed later.)
         (function () {
+            var href = 'manifest.webmanifest';
             try {
                 var tablet = Math.min(screen.width, screen.height) >= 600 && matchMedia('(pointer: coarse)').matches;
-                if (tablet) document.getElementById('appManifest').setAttribute('href', 'manifest-tablet.webmanifest');
+                if (tablet) href = 'manifest-tablet.webmanifest';
             } catch (e) {}
+            var link = document.createElement('link');
+            link.rel = 'manifest';
+            link.id = 'appManifest';
+            link.href = href;
+            document.head.appendChild(link);
         })();
     </script>
     <meta name="theme-color" content="#4f46e5">
