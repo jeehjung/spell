@@ -3,6 +3,8 @@
 // Pages project's secret GEMINI_API_KEY and is never sent to the browser.
 // Allowed callers: this site itself and the GitHub Pages production copy.
 
+import { logGemini } from '../_usage.js';
+
 const EXTRA_ALLOWED_ORIGINS = ['https://jeehjung.github.io'];
 const MODEL_PATTERN = /^gemini-[a-z0-9.\-]+$/i;
 const MAX_BODY_BYTES = 20 * 1024 * 1024;
@@ -64,6 +66,7 @@ export async function onRequestPost({ request, env }) {
             body: JSON.stringify(body.payload)
         }
     );
+    await logGemini(env, 'spell', upstream.status);
     // Pass Gemini's answer (and its status) straight through so the app handles it as before.
     return new Response(upstream.body, {
         status: upstream.status,
