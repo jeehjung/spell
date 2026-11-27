@@ -31,7 +31,7 @@ jobs:
       - name: Prepare Pages artifact
         run: |
           mkdir -p dist
-          cp source-main/index.html source-main/manifest.webmanifest source-main/sw.js dist/
+          cp source-main/index.html source-main/manifest.webmanifest source-main/manifest-tablet.webmanifest source-main/sw.js dist/
           cp -r source-main/icons dist/icons
 
           # Stamp the page with the actual GitHub Pages build time (Korea time).
