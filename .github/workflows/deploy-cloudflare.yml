@@ -50,6 +50,13 @@ jobs:
           sed -i "s|__BUILD_VERSION__|${BUILD_VERSION}|g" dist/index.html dist/sw.js
           printf '{"version":"%s"}\n' "${BUILD_VERSION}" > dist/version.json
 
+          # Development install shows as "Word Study 개발" on the home screen.
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            sed -i 's|"name": "Word Study"|"name": "Word Study 개발"|; s|"short_name": "Word Study"|"short_name": "Word Study 개발"|' dist/manifest.webmanifest
+            sed -i 's|<meta name="apple-mobile-web-app-title" content="Word Study">|<meta name="apple-mobile-web-app-title" content="Word Study 개발">|; s|<title>Word Study</title>|<title>Word Study 개발</title>|' dist/index.html
+            grep -q '"name": "Word Study 개발"' dist/manifest.webmanifest || { echo "::error::Development app name was not applied."; exit 1; }
+          fi
+
           # Fail the build rather than publish a visible placeholder.
           if grep -qE '__LATEST_UPDATE__|__BUILD_VERSION__' dist/index.html dist/sw.js; then
             echo "::error::Build placeholders were not replaced."
